@@ -6,6 +6,7 @@ import { WebSocketServer } from 'ws';
 
 import { logger } from '../logger.js';
 import { groupsRouter } from './routes/groups.js';
+import { logsRouter } from './routes/logs.js';
 
 /**
  * Create and start the dashboard HTTP + WebSocket server.
@@ -35,6 +36,7 @@ export function startDashboardServer(
   });
 
   app.use('/api', groupsRouter);
+  app.use('/api', logsRouter());
 
   // ── Static files (built dashboard) ─────────────────────────────────────────
   const distPath = path.resolve(process.cwd(), 'dashboard', 'dist');
