@@ -5,8 +5,15 @@ import express from 'express';
 import { WebSocketServer } from 'ws';
 
 import { logger } from '../logger.js';
+import { DashboardDeps } from './types.js';
 import { groupsRouter } from './routes/groups.js';
 import { logsRouter } from './routes/logs.js';
+// TODO: mount statsRouter and channelsRouter after they are created in Task 2
+
+/** Module-scoped deps reference — used by WebSocket chat handler (02-04) */
+let dashboardDeps: DashboardDeps | null = null;
+
+export { dashboardDeps };
 
 /**
  * Create and start the dashboard HTTP + WebSocket server.
@@ -16,17 +23,22 @@ import { logsRouter } from './routes/logs.js';
  *
  * @param port     TCP port to listen on (default 3030 via config)
  * @param bindHost Host address to bind (default '0.0.0.0')
+ * @param deps     Dashboard dependency injection object
  * @returns        The underlying http.Server so callers can call .close()
  */
 export function startDashboardServer(
   port: number,
   bindHost: string,
+  deps: DashboardDeps,
 ): http.Server {
   if (bindHost === '0.0.0.0') {
     logger.warn(
       'Dashboard bound to 0.0.0.0 — accessible on all network interfaces',
     );
   }
+
+  // Store deps on module scope so the WebSocket handler can access them (used in 02-04)
+  dashboardDeps = deps;
 
   const app = express();
 

@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { DATA_DIR, MAX_CONCURRENT_CONTAINERS } from './config.js';
+import { ContainerSnapshot } from './dashboard/types.js';
 import { logger } from './logger.js';
 
 interface QueuedTask {
@@ -25,6 +26,7 @@ interface GroupState {
   containerName: string | null;
   groupFolder: string | null;
   retryCount: number;
+  startedAt: number | null;
 }
 
 export class GroupQueue {
@@ -49,6 +51,7 @@ export class GroupQueue {
         containerName: null,
         groupFolder: null,
         retryCount: 0,
+        startedAt: null,
       };
       this.groups.set(groupJid, state);
     }
@@ -154,6 +157,20 @@ export class GroupQueue {
   }
 
   /**
+   * Return a snapshot of all known group states for dashboard display.
+   */
+  getSnapshot(): ContainerSnapshot[] {
+    return [...this.groups.entries()].map(([jid, state]) => ({
+      jid,
+      active: state.active,
+      containerName: state.containerName,
+      elapsedMs: state.startedAt ? Date.now() - state.startedAt : null,
+      groupFolder: state.groupFolder,
+      startedAt: state.startedAt,
+    }));
+  }
+
+  /**
    * Send a follow-up message to the active container via IPC file.
    * Returns true if the message was written, false if no active container.
    */
@@ -199,6 +216,7 @@ export class GroupQueue {
   ): Promise<void> {
     const state = this.getGroup(groupJid);
     state.active = true;
+    state.startedAt = Date.now();
     state.idleWaiting = false;
     state.isTaskContainer = false;
     state.pendingMessages = false;
@@ -223,6 +241,7 @@ export class GroupQueue {
       this.scheduleRetry(groupJid, state);
     } finally {
       state.active = false;
+      state.startedAt = null;
       state.process = null;
       state.containerName = null;
       state.groupFolder = null;
@@ -234,6 +253,7 @@ export class GroupQueue {
   private async runTask(groupJid: string, task: QueuedTask): Promise<void> {
     const state = this.getGroup(groupJid);
     state.active = true;
+    state.startedAt = Date.now();
     state.idleWaiting = false;
     state.isTaskContainer = true;
     state.runningTaskId = task.id;
@@ -250,6 +270,7 @@ export class GroupQueue {
       logger.error({ groupJid, taskId: task.id, err }, 'Error running task');
     } finally {
       state.active = false;
+      state.startedAt = null;
       state.isTaskContainer = false;
       state.runningTaskId = null;
       state.process = null;

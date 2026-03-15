@@ -6,6 +6,7 @@ import {
   CREDENTIAL_PROXY_PORT,
   DASHBOARD_BIND,
   DASHBOARD_PORT,
+  DATA_DIR,
   IDLE_TIMEOUT,
   POLL_INTERVAL,
   TELEGRAM_BOT_POOL,
@@ -14,6 +15,8 @@ import {
 } from './config.js';
 import { startCredentialProxy } from './credential-proxy.js';
 import { startDashboardServer } from './dashboard/server.js';
+import { DashboardDeps } from './dashboard/types.js';
+import { getDb } from './db.js';
 import './channels/index.js';
 import {
   getChannelFactory,
@@ -506,8 +509,80 @@ async function main(): Promise<void> {
     PROXY_BIND_HOST,
   );
 
+  // Build DashboardDeps for dependency injection into dashboard routes
+  const dashboardDeps: DashboardDeps = {
+    getChannels: () => channels,
+    getQueueSnapshot: () => queue.getSnapshot(),
+    getActiveContainerCount: () =>
+      queue.getSnapshot().filter((s) => s.active).length,
+    getIpcQueueDepth: () => {
+      const ipcBase = path.join(DATA_DIR, 'ipc');
+      let count = 0;
+      try {
+        for (const g of fs.readdirSync(ipcBase)) {
+          for (const subdir of ['input', 'messages']) {
+            try {
+              count += fs
+                .readdirSync(path.join(ipcBase, g, subdir))
+                .filter((f) => f.endsWith('.json')).length;
+            } catch {
+              /* subdir may not exist */
+            }
+          }
+        }
+      } catch {
+        /* ipc dir may not exist yet */
+      }
+      return count;
+    },
+    getTodosDueToday: () => {
+      try {
+        const db = getDb();
+        const today = new Date().toLocaleDateString('sv', {
+          timeZone: TIMEZONE,
+        });
+        const row = db
+          .prepare(
+            `SELECT COUNT(*) as cnt FROM todos WHERE status = 'pending' AND due_date = ?`,
+          )
+          .get(today) as { cnt: number } | undefined;
+        return row?.cnt ?? 0;
+      } catch {
+        return 0;
+      }
+    },
+    getLastError: () => {
+      const ANSI = /\x1B\[[0-9;]*m/g;
+      const HEADER = /^\[[\d:.]+\]\s+(ERROR|FATAL|WARN)\s+\(\d+\):\s+(.*)/i;
+      try {
+        const content = fs.readFileSync(
+          path.join(process.cwd(), 'logs', 'nanoclaw.log'),
+          'utf-8',
+        );
+        const lines = content.split('\n').filter(Boolean).slice(-500);
+        for (let i = lines.length - 1; i >= 0; i--) {
+          const clean = lines[i].replace(ANSI, '');
+          const m = clean.match(HEADER);
+          if (
+            m &&
+            (m[1].toUpperCase() === 'ERROR' || m[1].toUpperCase() === 'FATAL')
+          ) {
+            return m[2].slice(0, 200);
+          }
+        }
+      } catch {
+        /* log file may not exist */
+      }
+      return null;
+    },
+  };
+
   // Start dashboard HTTP + WebSocket server
-  const dashboardServer = startDashboardServer(DASHBOARD_PORT, DASHBOARD_BIND);
+  const dashboardServer = startDashboardServer(
+    DASHBOARD_PORT,
+    DASHBOARD_BIND,
+    dashboardDeps,
+  );
 
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {

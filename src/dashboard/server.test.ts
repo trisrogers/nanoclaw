@@ -3,6 +3,17 @@ import { WebSocket } from 'ws';
 import { describe, it, expect, afterEach } from 'vitest';
 import supertest from 'supertest';
 import { startDashboardServer } from './server.js';
+import { DashboardDeps } from './types.js';
+
+/** Minimal mock DashboardDeps for tests that don't exercise route behaviour */
+const mockDeps: DashboardDeps = {
+  getChannels: () => [],
+  getQueueSnapshot: () => [],
+  getActiveContainerCount: () => 0,
+  getIpcQueueDepth: () => 0,
+  getTodosDueToday: () => 0,
+  getLastError: () => null,
+};
 
 /** Wait for the server to start listening (in case listen is async). */
 function waitListening(server: http.Server): Promise<void> {
@@ -20,7 +31,7 @@ describe('startDashboardServer', () => {
   });
 
   it('GET /api/health returns 200 with {ok: true, ts: string}', async () => {
-    server = startDashboardServer(0, '0.0.0.0');
+    server = startDashboardServer(0, '0.0.0.0', mockDeps);
     await waitListening(server);
     const res = await supertest(server).get('/api/health');
     expect(res.status).toBe(200);
@@ -29,7 +40,7 @@ describe('startDashboardServer', () => {
   });
 
   it('server.address() port matches the argument (INFRA-01)', async () => {
-    server = startDashboardServer(0, '0.0.0.0');
+    server = startDashboardServer(0, '0.0.0.0', mockDeps);
     await waitListening(server);
     const addr = server.address() as { port: number };
     expect(typeof addr.port).toBe('number');
@@ -37,7 +48,7 @@ describe('startDashboardServer', () => {
   });
 
   it('server binds to all interfaces — address is 0.0.0.0 or :: (INFRA-05)', async () => {
-    server = startDashboardServer(0, '0.0.0.0');
+    server = startDashboardServer(0, '0.0.0.0', mockDeps);
     await waitListening(server);
     const addr = server.address() as { address: string };
     // Node may report '0.0.0.0' (IPv4 only) or '::' (IPv6 dual-stack) when
@@ -46,7 +57,7 @@ describe('startDashboardServer', () => {
   });
 
   it('WebSocket upgrade to /ws/chat returns 101 Switching Protocols (INFRA-04)', async () => {
-    server = startDashboardServer(0, '0.0.0.0');
+    server = startDashboardServer(0, '0.0.0.0', mockDeps);
     await waitListening(server);
     const { port } = server.address() as { port: number };
 
@@ -61,7 +72,7 @@ describe('startDashboardServer', () => {
   }, 8000);
 
   it('calling server.close() resolves without error (INFRA-03 smoke)', async () => {
-    server = startDashboardServer(0, '0.0.0.0');
+    server = startDashboardServer(0, '0.0.0.0', mockDeps);
     await waitListening(server);
     // Close the server and confirm it resolves
     await new Promise<void>((resolve, reject) => {
