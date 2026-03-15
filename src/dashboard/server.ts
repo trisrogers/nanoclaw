@@ -7,6 +7,7 @@ import { WebSocketServer } from 'ws';
 import { logger } from '../logger.js';
 import { DashboardDeps } from './types.js';
 import { channelsRouter } from './routes/channels.js';
+import { containersRouter } from './routes/containers.js';
 import { groupsRouter } from './routes/groups.js';
 import { logsRouter } from './routes/logs.js';
 import { statsRouter } from './routes/stats.js';
@@ -50,6 +51,7 @@ export function startDashboardServer(
 
   app.use('/api', statsRouter(deps));
   app.use('/api', channelsRouter(deps));
+  app.use('/api', containersRouter(deps));
   app.use('/api', groupsRouter);
   app.use('/api', logsRouter());
 

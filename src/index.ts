@@ -16,6 +16,7 @@ import {
 import { startCredentialProxy } from './credential-proxy.js';
 import { startDashboardServer } from './dashboard/server.js';
 import { DashboardDeps } from './dashboard/types.js';
+import { WebDashboardChannel } from './channels/web-dashboard.js';
 import { getDb } from './db.js';
 import './channels/index.js';
 import {
@@ -574,6 +575,35 @@ async function main(): Promise<void> {
         /* log file may not exist */
       }
       return null;
+    },
+    getRegisteredGroups: () => registeredGroups,
+    clearGroupSession: (folder: string) => {
+      const entry = Object.entries(registeredGroups).find(
+        ([, g]) => g.folder === folder,
+      );
+      if (!entry) return { ok: false, error: 'Group not found' };
+      const [jid] = entry;
+      try {
+        clearSession(folder);
+        delete sessions[jid];
+        queue.closeStdin(jid);
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
+    },
+    restartGroupContainer: (folder: string) => {
+      const entry = Object.entries(registeredGroups).find(
+        ([, g]) => g.folder === folder,
+      );
+      if (!entry) return { ok: false, error: 'Group not found' };
+      const [jid] = entry;
+      try {
+        queue.closeStdin(jid);
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
     },
   };
 
