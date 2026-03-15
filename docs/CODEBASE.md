@@ -25,11 +25,13 @@ nanoclaw/
 │   ├── container-runtime.ts# Docker CLI abstraction (runtime detection, mounts)
 │   ├── credential-proxy.ts # HTTP proxy that injects credentials into containers
 │   ├── dashboard/
-│   │   ├── server.ts       # Dashboard HTTP + WebSocket server (startDashboardServer)
-│   │   ├── types.ts        # DashboardDeps interface
+│   │   ├── server.ts       # Dashboard HTTP + WebSocket server (startDashboardServer(port, host, deps))
+│   │   ├── types.ts        # DashboardDeps + ContainerSnapshot interfaces
 │   │   └── routes/
 │   │       ├── groups.ts   # GET /api/groups — registered groups from DB (LIMIT 100)
-│   │       └── logs.ts     # GET /api/logs — last 200 parsed pino-pretty log entries
+│   │       ├── logs.ts     # GET /api/logs — last 200 parsed pino-pretty log entries
+│   │       ├── stats.ts    # GET /api/stats — 5-key live metrics (channels, containers, IPC, todos, error)
+│   │       └── channels.ts # GET /api/channels — channel name + connection status array
 │   ├── ipc.ts              # Watches IPC dirs for container → host communication
 │   ├── task-scheduler.ts   # Runs scheduled tasks (cron / interval / once)
 │   ├── todo.ts             # Todo/task CRUD (projects, items, reminders)
@@ -246,7 +248,7 @@ Polls `getDueTasks()` every 60s. Runs due tasks via `queue.enqueueTask()`. Also 
 **Session context:** `isolated` = fresh session each run; `group` = reuse group's persistent session
 
 ### `src/group-queue.ts` — Concurrency Manager
-Prevents more than `MAX_CONCURRENT_CONTAINERS` (5) containers running simultaneously. Each group has one slot. State per group: `active`, `idleWaiting`, `pendingMessages`, `pendingTasks`, running process reference, retry count.
+Prevents more than `MAX_CONCURRENT_CONTAINERS` (5) containers running simultaneously. Each group has one slot. State per group: `active`, `idleWaiting`, `pendingMessages`, `pendingTasks`, running process reference, retry count, `startedAt` timestamp. Public `getSnapshot()` method returns `ContainerSnapshot[]` used by dashboard stats and containers panel.
 
 Key behaviour: when a container finishes and goes idle, the queue checks for pending tasks → pending messages → other waiting groups before deciding to keep or close it.
 
