@@ -46,7 +46,10 @@ export function logsRouter(): Router {
     try {
       const content = fs.readFileSync(logFilePath, 'utf-8');
       // Grab extra lines to account for continuation lines
-      const rawLines = content.split('\n').filter(Boolean).slice(-LOG_LINE_COUNT * 3);
+      const rawLines = content
+        .split('\n')
+        .filter(Boolean)
+        .slice(-LOG_LINE_COUNT * 3);
       const entries = parseLogLines(rawLines).slice(-LOG_LINE_COUNT);
       res.json(entries);
     } catch {

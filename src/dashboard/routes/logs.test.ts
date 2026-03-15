@@ -83,7 +83,9 @@ describe('GET /logs route', () => {
     const req = {} as any;
     let jsonResponse: any;
     const res = {
-      json: vi.fn((val) => { jsonResponse = val; }),
+      json: vi.fn((val) => {
+        jsonResponse = val;
+      }),
     } as any;
 
     // Find the GET /logs handler
@@ -109,7 +111,9 @@ describe('GET /logs route', () => {
     const req = {} as any;
     let jsonResponse: any;
     const res = {
-      json: vi.fn((val) => { jsonResponse = val; }),
+      json: vi.fn((val) => {
+        jsonResponse = val;
+      }),
     } as any;
 
     const layer = (router as any).stack.find(

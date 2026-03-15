@@ -11,8 +11,8 @@ export function containersRouter(deps: DashboardDeps): Router {
     const result = snapshot.map((s) => ({
       ...s,
       groupName: s.groupFolder
-        ? (Object.values(groups).find((g) => g.folder === s.groupFolder)?.name ??
-          s.groupFolder)
+        ? (Object.values(groups).find((g) => g.folder === s.groupFolder)
+            ?.name ?? s.groupFolder)
         : s.jid,
     }));
     res.json(result);

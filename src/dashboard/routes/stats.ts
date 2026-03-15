@@ -6,7 +6,8 @@ export function statsRouter(deps: DashboardDeps): Router {
   const router = Router();
   router.get('/stats', (_req, res) => {
     res.json({
-      channelsConnected: deps.getChannels().filter((ch) => ch.isConnected()).length,
+      channelsConnected: deps.getChannels().filter((ch) => ch.isConnected())
+        .length,
       activeContainers: deps.getActiveContainerCount(),
       ipcQueueDepth: deps.getIpcQueueDepth(),
       todosDueToday: deps.getTodosDueToday(),
