@@ -5,6 +5,7 @@ import express from 'express';
 import { WebSocketServer } from 'ws';
 
 import { logger } from '../logger.js';
+import { createChatHandler } from './chat-handler.js';
 import { DashboardDeps } from './types.js';
 import { channelsRouter } from './routes/channels.js';
 import { containersRouter } from './routes/containers.js';
@@ -69,8 +70,10 @@ export function startDashboardServer(
 
   // ── WebSocket server attached to /ws/chat ───────────────────────────────────
   const wss = new WebSocketServer({ server, path: '/ws/chat' });
+  const chatHandler = createChatHandler(deps);
   wss.on('connection', (ws) => {
     logger.debug('Dashboard WebSocket client connected');
+    chatHandler(ws);
     ws.on('close', () =>
       logger.debug('Dashboard WebSocket client disconnected'),
     );
