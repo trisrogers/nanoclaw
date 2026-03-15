@@ -4,6 +4,8 @@ import path from 'path';
 import {
   ASSISTANT_NAME,
   CREDENTIAL_PROXY_PORT,
+  DASHBOARD_BIND,
+  DASHBOARD_PORT,
   IDLE_TIMEOUT,
   POLL_INTERVAL,
   TELEGRAM_BOT_POOL,
@@ -11,6 +13,7 @@ import {
   TRIGGER_PATTERN,
 } from './config.js';
 import { startCredentialProxy } from './credential-proxy.js';
+import { startDashboardServer } from './dashboard/server.js';
 import './channels/index.js';
 import {
   getChannelFactory,
@@ -503,9 +506,13 @@ async function main(): Promise<void> {
     PROXY_BIND_HOST,
   );
 
+  // Start dashboard HTTP + WebSocket server
+  const dashboardServer = startDashboardServer(DASHBOARD_PORT, DASHBOARD_BIND);
+
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutdown signal received');
+    dashboardServer.close();
     proxyServer.close();
     await queue.shutdown(10000);
     for (const ch of channels) await ch.disconnect();

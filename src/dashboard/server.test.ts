@@ -1,18 +1,27 @@
 import http from 'http';
+import { WebSocket } from 'ws';
 import { describe, it, expect, afterEach } from 'vitest';
 import supertest from 'supertest';
 import { startDashboardServer } from './server.js';
+
+/** Wait for the server to start listening (in case listen is async). */
+function waitListening(server: http.Server): Promise<void> {
+  if (server.listening) return Promise.resolve();
+  return new Promise((resolve) => server.once('listening', resolve));
+}
 
 describe('startDashboardServer', () => {
   let server: http.Server;
 
   afterEach(async () => {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    if (server?.listening) {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 
   it('GET /api/health returns 200 with {ok: true, ts: string}', async () => {
     server = startDashboardServer(0, '0.0.0.0');
-    await new Promise<void>((resolve) => server.listen(0, resolve));
+    await waitListening(server);
     const res = await supertest(server).get('/api/health');
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -21,52 +30,42 @@ describe('startDashboardServer', () => {
 
   it('server.address() port matches the argument (INFRA-01)', async () => {
     server = startDashboardServer(0, '0.0.0.0');
-    await new Promise<void>((resolve) => server.listen(0, resolve));
+    await waitListening(server);
     const addr = server.address() as { port: number };
     expect(typeof addr.port).toBe('number');
     expect(addr.port).toBeGreaterThan(0);
   });
 
-  it('server.address().address is 0.0.0.0 (INFRA-05)', async () => {
+  it('server binds to all interfaces — address is 0.0.0.0 or :: (INFRA-05)', async () => {
     server = startDashboardServer(0, '0.0.0.0');
-    await new Promise<void>((resolve) => server.listen(0, resolve));
+    await waitListening(server);
     const addr = server.address() as { address: string };
-    expect(addr.address).toBe('0.0.0.0');
+    // Node may report '0.0.0.0' (IPv4 only) or '::' (IPv6 dual-stack) when
+    // bindHost is '0.0.0.0' — both mean "all interfaces".
+    expect(['0.0.0.0', '::']).toContain(addr.address);
   });
 
   it('WebSocket upgrade to /ws/chat returns 101 Switching Protocols (INFRA-04)', async () => {
     server = startDashboardServer(0, '0.0.0.0');
-    await new Promise<void>((resolve) => server.listen(0, resolve));
+    await waitListening(server);
     const { port } = server.address() as { port: number };
 
     await new Promise<void>((resolve, reject) => {
-      const req = http.request({
-        hostname: '127.0.0.1',
-        port,
-        path: '/ws/chat',
-        headers: {
-          Connection: 'Upgrade',
-          Upgrade: 'websocket',
-          'Sec-WebSocket-Key': Buffer.from('nanoclaw-test-key').toString('base64'),
-          'Sec-WebSocket-Version': '13',
-        },
-      });
-      req.on('upgrade', (_res, socket) => {
-        socket.destroy();
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/chat`);
+      ws.on('open', () => {
+        ws.close();
         resolve();
       });
-      req.on('error', reject);
-      req.setTimeout(3000, () => reject(new Error('WS upgrade timeout')));
-      req.end();
+      ws.on('error', reject);
     });
-  });
+  }, 8000);
 
   it('calling server.close() resolves without error (INFRA-03 smoke)', async () => {
     server = startDashboardServer(0, '0.0.0.0');
-    await new Promise<void>((resolve) => server.listen(0, resolve));
-    // server.close is called by afterEach — here we just confirm no throw
-    expect(() => server.close()).not.toThrow();
-    // re-assign so afterEach double-close is a no-op
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await waitListening(server);
+    // Close the server and confirm it resolves
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => (err ? reject(err) : resolve()));
+    });
   });
 });
