@@ -409,6 +409,7 @@ async function runQuery(
         'NotebookEdit',
         'mcp__nanoclaw__*',
         'mcp__gmail__*',
+        ...(process.env.NOTION_API_KEY ? ['mcp__notion__*'] : []),
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',
@@ -428,6 +429,18 @@ async function runQuery(
           command: 'npx',
           args: ['-y', '@gongrzhe/server-gmail-autoauth-mcp'],
         },
+        ...(process.env.NOTION_API_KEY ? {
+          notion: {
+            command: 'npx',
+            args: ['-y', '@notionhq/notion-mcp-server'],
+            env: {
+              OPENAPI_MCP_HEADERS: JSON.stringify({
+                Authorization: `Bearer ${process.env.NOTION_API_KEY}`,
+                'Notion-Version': '2022-06-28',
+              }),
+            },
+          },
+        } : {}),
       },
       hooks: {
         PreCompact: [{ hooks: [createPreCompactHook(containerInput.assistantName)] }],

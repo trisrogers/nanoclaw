@@ -20,6 +20,7 @@ import {
   runContainerAgent,
   writeGroupsSnapshot,
   writeTasksSnapshot,
+  writeTodoSnapshot,
 } from './container-runner.js';
 import {
   cleanupOrphans,
@@ -33,6 +34,7 @@ import {
   getAllTasks,
   getMessagesSince,
   getNewMessages,
+  clearSession,
   getRegisteredGroup,
   getRouterState,
   initDatabase,
@@ -285,6 +287,9 @@ async function runAgent(
     })),
   );
 
+  // Update todo snapshot for container
+  writeTodoSnapshot(group.folder);
+
   // Update available groups snapshot (main group only can see all groups)
   const availableGroups = getAvailableGroups();
   writeGroupsSnapshot(
@@ -517,6 +522,18 @@ async function main(): Promise<void> {
       isGroup?: boolean,
     ) => storeChatMetadata(chatJid, timestamp, name, channel, isGroup),
     registeredGroups: () => registeredGroups,
+    onResetSession: (chatJid: string) => {
+      const group = getRegisteredGroup(chatJid);
+      if (group) {
+        clearSession(group.folder);
+        delete sessions[group.folder];
+        queue.closeStdin(chatJid);
+        logger.info(
+          { chatJid, folder: group.folder },
+          'Session cleared via /new command',
+        );
+      }
+    },
   };
 
   // Create and connect all registered channels.
@@ -562,6 +579,15 @@ async function main(): Promise<void> {
       const channel = findChannel(channels, jid);
       if (!channel) throw new Error(`No channel for JID: ${jid}`);
       return channel.sendMessage(jid, text);
+    },
+    sendMessageWithButtons: (jid, text, buttons) => {
+      const channel = findChannel(channels, jid);
+      if (!channel) throw new Error(`No channel for JID: ${jid}`);
+      if (!channel.sendMessageWithButtons) {
+        logger.warn({ jid }, 'Channel does not support sendMessageWithButtons');
+        return channel.sendMessage(jid, text);
+      }
+      return channel.sendMessageWithButtons(jid, text, buttons);
     },
     registeredGroups: () => registeredGroups,
     registerGroup,

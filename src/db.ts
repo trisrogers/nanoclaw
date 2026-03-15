@@ -14,6 +14,10 @@ import {
 
 let db: Database.Database;
 
+export function getDb(): Database.Database {
+  return db;
+}
+
 function createSchema(database: Database.Database): void {
   database.exec(`
     CREATE TABLE IF NOT EXISTS chats (
@@ -73,6 +77,35 @@ function createSchema(database: Database.Database): void {
       group_folder TEXT PRIMARY KEY,
       session_id TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS todo_projects (
+      code TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS todo_items (
+      task_id TEXT PRIMARY KEY,
+      seq_num INTEGER NOT NULL DEFAULT 0,
+      title TEXT NOT NULL,
+      assignee TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open',
+      project_code TEXT NOT NULL DEFAULT 'TSK',
+      priority TEXT,
+      due_date TEXT,
+      reminder_at TEXT,
+      reminder_sent INTEGER NOT NULL DEFAULT 0,
+      tags TEXT,
+      notes TEXT,
+      notion_id TEXT,
+      parent_task_id TEXT REFERENCES todo_items(task_id),
+      subtask_letter TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_todo_status ON todo_items(status);
+    CREATE INDEX IF NOT EXISTS idx_todo_assignee ON todo_items(assignee);
+    CREATE INDEX IF NOT EXISTS idx_todo_due_date ON todo_items(due_date);
+    CREATE INDEX IF NOT EXISTS idx_todo_parent ON todo_items(parent_task_id);
+
     CREATE TABLE IF NOT EXISTS registered_groups (
       jid TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -83,6 +116,13 @@ function createSchema(database: Database.Database): void {
       requires_trigger INTEGER DEFAULT 1
     );
   `);
+
+  // Seed default TSK project
+  database
+    .prepare(
+      `INSERT OR IGNORE INTO todo_projects (code, name, created_at) VALUES ('TSK', 'Tasks', ?)`,
+    )
+    .run(new Date().toISOString());
 
   // Add context_mode column if it doesn't exist (migration for existing DBs)
   try {
@@ -524,6 +564,10 @@ export function setSession(groupFolder: string, sessionId: string): void {
   db.prepare(
     'INSERT OR REPLACE INTO sessions (group_folder, session_id) VALUES (?, ?)',
   ).run(groupFolder, sessionId);
+}
+
+export function clearSession(groupFolder: string): void {
+  db.prepare('DELETE FROM sessions WHERE group_folder = ?').run(groupFolder);
 }
 
 export function getAllSessions(): Record<string, string> {

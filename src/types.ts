@@ -90,6 +90,13 @@ export interface Channel {
   setTyping?(jid: string, isTyping: boolean): Promise<void>;
   // Optional: sync group/chat names from the platform.
   syncGroups?(force: boolean): Promise<void>;
+  // Optional: send a message with inline button choices (Telegram only).
+  // buttons is an array of rows, each row is an array of button labels.
+  sendMessageWithButtons?(
+    jid: string,
+    text: string,
+    buttons: string[][],
+  ): Promise<void>;
 }
 
 // Callback type that channels use to deliver inbound messages

@@ -1,6 +1,9 @@
 import dns from 'dns';
+import fs from 'fs';
+import path from 'path';
+import { spawnSync } from 'child_process';
 
-import { Bot } from 'grammy';
+import { Bot, InlineKeyboard } from 'grammy';
 
 // node-fetch (used by grammy) resolves hostnames via dns.lookup, which may
 // prefer IPv6. In environments where IPv6 is unreachable (e.g. WSL), this
@@ -31,6 +34,7 @@ export interface TelegramChannelOpts {
   onMessage: OnInboundMessage;
   onChatMetadata: OnChatMetadata;
   registeredGroups: () => Record<string, RegisteredGroup>;
+  onResetSession?: (chatJid: string) => void;
 }
 
 export class TelegramChannel implements Channel {
@@ -66,6 +70,24 @@ export class TelegramChannel implements Channel {
     // Command to check bot status
     this.bot.command('ping', (ctx) => {
       ctx.reply(`${ASSISTANT_NAME} is online.`);
+    });
+
+    this.bot.command('new', (ctx) => {
+      const chatJid = `tg:${ctx.chat.id}`;
+      const group = this.opts.registeredGroups()[chatJid];
+      if (!group) {
+        ctx.reply('This chat is not registered.');
+        return;
+      }
+      this.opts.onResetSession?.(chatJid);
+      this.opts.onMessage(chatJid, {
+        id: `new-session-${Date.now()}`,
+        chat_jid: chatJid,
+        sender: ctx.from?.id.toString() ?? chatJid,
+        sender_name: ctx.from?.first_name ?? 'User',
+        content: 'New session started.',
+        timestamp: new Date().toISOString(),
+      });
     });
 
     this.bot.on('message:text', async (ctx) => {
@@ -183,7 +205,49 @@ export class TelegramChannel implements Channel {
 
     this.bot.on('message:photo', (ctx) => storeNonText(ctx, '[Photo]'));
     this.bot.on('message:video', (ctx) => storeNonText(ctx, '[Video]'));
-    this.bot.on('message:voice', (ctx) => storeNonText(ctx, '[Voice message]'));
+    this.bot.on('message:voice', async (ctx) => {
+      const chatJid = `tg:${ctx.chat.id}`;
+      const group = this.opts.registeredGroups()[chatJid];
+      if (!group) return;
+
+      const timestamp = new Date(ctx.message.date * 1000).toISOString();
+      const senderName =
+        ctx.from?.first_name ||
+        ctx.from?.username ||
+        ctx.from?.id?.toString() ||
+        'Unknown';
+      const isGroup =
+        ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
+      this.opts.onChatMetadata(
+        chatJid,
+        timestamp,
+        undefined,
+        'telegram',
+        isGroup,
+      );
+
+      let content = '[Voice message]';
+      try {
+        const transcription = await this.transcribeVoice(
+          ctx.message.voice.file_id,
+        );
+        if (transcription) {
+          content = `[Voice]: ${transcription}`;
+        }
+      } catch (err) {
+        logger.warn({ err }, 'Voice transcription failed, using placeholder');
+      }
+
+      this.opts.onMessage(chatJid, {
+        id: ctx.message.message_id.toString(),
+        chat_jid: chatJid,
+        sender: ctx.from?.id?.toString() || '',
+        sender_name: senderName,
+        content,
+        timestamp,
+        is_from_me: false,
+      });
+    });
     this.bot.on('message:audio', (ctx) => storeNonText(ctx, '[Audio]'));
     this.bot.on('message:document', (ctx) => {
       const name = ctx.message.document?.file_name || 'file';
@@ -195,6 +259,41 @@ export class TelegramChannel implements Channel {
     });
     this.bot.on('message:location', (ctx) => storeNonText(ctx, '[Location]'));
     this.bot.on('message:contact', (ctx) => storeNonText(ctx, '[Contact]'));
+
+    // Handle inline keyboard button presses — route them as inbound messages
+    this.bot.on('callback_query:data', async (ctx) => {
+      const chatJid = `tg:${ctx.chat?.id ?? ctx.callbackQuery.message?.chat.id}`;
+      const group = this.opts.registeredGroups()[chatJid];
+      if (!group) {
+        await ctx.answerCallbackQuery();
+        return;
+      }
+
+      const buttonText = ctx.callbackQuery.data;
+      const timestamp = new Date().toISOString();
+      const senderName =
+        ctx.from?.first_name ||
+        ctx.from?.username ||
+        ctx.from?.id.toString() ||
+        'Unknown';
+
+      await ctx.answerCallbackQuery(); // dismiss the loading spinner
+
+      this.opts.onMessage(chatJid, {
+        id: `cbq-${ctx.callbackQuery.id}`,
+        chat_jid: chatJid,
+        sender: ctx.from?.id.toString() || '',
+        sender_name: senderName,
+        content: buttonText,
+        timestamp,
+        is_from_me: false,
+      });
+
+      logger.info(
+        { chatJid, button: buttonText, sender: senderName },
+        'Telegram button press received',
+      );
+    });
 
     // Handle errors gracefully
     this.bot.catch((err) => {
@@ -243,6 +342,74 @@ export class TelegramChannel implements Channel {
       logger.info({ jid, length: text.length }, 'Telegram message sent');
     } catch (err) {
       logger.error({ jid, err }, 'Failed to send Telegram message');
+    }
+  }
+
+  private async transcribeVoice(fileId: string): Promise<string | null> {
+    const file = await this.bot!.api.getFile(fileId);
+    if (!file.file_path) return null;
+
+    const downloadUrl = `https://api.telegram.org/file/bot${this.botToken}/${file.file_path}`;
+    const response = await fetch(downloadUrl);
+    if (!response.ok)
+      throw new Error(`Failed to download voice file: ${response.status}`);
+
+    const buffer = await response.arrayBuffer();
+    const tmpPath = `/tmp/nanoclaw_voice_${Date.now()}.ogg`;
+    fs.writeFileSync(tmpPath, Buffer.from(buffer));
+
+    const scriptPath = path.resolve(
+      process.cwd(),
+      'scripts/whisper_transcribe.py',
+    );
+    try {
+      // Use the linuxbrew python which has faster-whisper installed.
+      // Falls back to 'python3' if the linuxbrew path doesn't exist.
+      const pythonBin = fs.existsSync('/home/linuxbrew/.linuxbrew/bin/python3')
+        ? '/home/linuxbrew/.linuxbrew/bin/python3'
+        : 'python3';
+      const result = spawnSync(pythonBin, [scriptPath, tmpPath], {
+        timeout: 60000,
+        encoding: 'utf-8',
+      });
+      if (result.status !== 0) {
+        throw new Error(result.stderr?.trim() || 'Whisper failed');
+      }
+      return result.stdout.trim() || null;
+    } finally {
+      try {
+        fs.unlinkSync(tmpPath);
+      } catch {}
+    }
+  }
+
+  async sendMessageWithButtons(
+    jid: string,
+    text: string,
+    buttons: string[][],
+  ): Promise<void> {
+    if (!this.bot) {
+      logger.warn('Telegram bot not initialized');
+      return;
+    }
+    const numericId = jid.replace(/^tg:/, '');
+    const keyboard = new InlineKeyboard();
+    for (const row of buttons) {
+      for (const label of row) {
+        keyboard.text(label, label);
+      }
+      keyboard.row();
+    }
+    try {
+      await this.bot.api.sendMessage(numericId, text, {
+        reply_markup: keyboard,
+      });
+      logger.info({ jid, buttons }, 'Telegram message with buttons sent');
+    } catch (err) {
+      logger.error(
+        { jid, err },
+        'Failed to send Telegram message with buttons',
+      );
     }
   }
 

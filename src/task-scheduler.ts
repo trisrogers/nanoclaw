@@ -7,6 +7,7 @@ import {
   ContainerOutput,
   runContainerAgent,
   writeTasksSnapshot,
+  writeTodoSnapshot,
 } from './container-runner.js';
 import {
   getAllTasks,
@@ -20,6 +21,13 @@ import { GroupQueue } from './group-queue.js';
 import { resolveGroupFolderPath } from './group-folder.js';
 import { logger } from './logger.js';
 import { RegisteredGroup, ScheduledTask } from './types.js';
+import {
+  getDueReminders,
+  getDeltronReminders,
+  formatReminderMessage,
+  markReminderSent,
+  type TodoItem,
+} from './todo.js';
 
 /**
  * Compute the next run time for a recurring task, anchored to the
@@ -132,6 +140,7 @@ async function runTask(
   // Update tasks snapshot for container to read (filtered by group)
   const isMain = group.isMain === true;
   const tasks = getAllTasks();
+  writeTodoSnapshot(task.group_folder);
   writeTasksSnapshot(
     task.group_folder,
     isMain,
@@ -238,6 +247,43 @@ async function runTask(
   updateTaskAfterRun(task.id, nextRun, resultSummary);
 }
 
+async function runDeltronReminder(
+  item: TodoItem,
+  deps: SchedulerDependencies,
+): Promise<void> {
+  const mainEntry = Object.entries(deps.registeredGroups()).find(
+    ([, g]) => g.isMain,
+  );
+  if (!mainEntry) return;
+
+  const [mainJid, mainGroup] = mainEntry;
+  const sessionId = deps.getSessions()[mainGroup.folder];
+
+  writeTodoSnapshot(mainGroup.folder);
+
+  const prompt = `Task reminder: ${item.task_id} "${item.title}" is due today. Please work on it now.`;
+
+  await runContainerAgent(
+    mainGroup,
+    {
+      prompt,
+      sessionId,
+      groupFolder: mainGroup.folder,
+      chatJid: mainJid,
+      isMain: true,
+      isScheduledTask: true,
+      assistantName: ASSISTANT_NAME,
+    },
+    (proc, containerName) =>
+      deps.onProcess(mainJid, proc, containerName, mainGroup.folder),
+    async (streamedOutput: ContainerOutput) => {
+      if (streamedOutput.result) {
+        await deps.sendMessage(mainJid, streamedOutput.result);
+      }
+    },
+  );
+}
+
 let schedulerRunning = false;
 
 export function startSchedulerLoop(deps: SchedulerDependencies): void {
@@ -249,6 +295,50 @@ export function startSchedulerLoop(deps: SchedulerDependencies): void {
   logger.info('Scheduler loop started');
 
   const loop = async () => {
+    try {
+      // Send todo reminders for tasks assigned to tristan due today (9am trigger)
+      const reminders = getDueReminders();
+      if (reminders.length > 0) {
+        const mainEntry = Object.entries(deps.registeredGroups()).find(
+          ([, g]) => g.isMain,
+        );
+        if (mainEntry) {
+          const [mainJid] = mainEntry;
+          await deps.sendMessage(mainJid, formatReminderMessage(reminders));
+          for (const r of reminders) {
+            markReminderSent(r.task_id);
+          }
+          logger.info({ count: reminders.length }, 'Todo reminders sent');
+        }
+      }
+    } catch (err) {
+      logger.error({ err }, 'Error checking todo reminders');
+    }
+
+    try {
+      // Auto-wake Deltron for its own due tasks
+      const deltronReminders = getDeltronReminders();
+      if (deltronReminders.length > 0) {
+        const mainEntry = Object.entries(deps.registeredGroups()).find(
+          ([, g]) => g.isMain,
+        );
+        if (mainEntry) {
+          const [mainJid] = mainEntry;
+          for (const item of deltronReminders) {
+            markReminderSent(item.task_id);
+            deps.queue.enqueueTask(
+              mainJid,
+              `deltron_reminder_${item.task_id}`,
+              () => runDeltronReminder(item, deps),
+            );
+            logger.info({ taskId: item.task_id }, 'Deltron reminder enqueued');
+          }
+        }
+      }
+    } catch (err) {
+      logger.error({ err }, 'Error checking deltron reminders');
+    }
+
     try {
       const dueTasks = getDueTasks();
       if (dueTasks.length > 0) {

@@ -30,6 +30,38 @@ Here are the key findings from the research...
 
 Text inside `<internal>` tags is logged but not sent to the user. If you've already sent the key information via `send_message`, you can wrap the recap in `<internal>` to avoid sending it again.
 
+### Inline buttons (Telegram)
+
+On Telegram you can send a message with tappable buttons instead of asking the user to type. Use this whenever a yes/no or short-choice answer is natural — it's much better UX than asking them to type.
+
+Write a file to `/workspace/ipc/messages/` then end your turn and wait for the reply:
+
+```bash
+cat > /workspace/ipc/messages/confirm-$(date +%s%N).json << 'EOF'
+{
+  "type": "message_with_buttons",
+  "chatJid": "CHAT_JID",
+  "text": "Your question here",
+  "buttons": [["Yes", "No"]]
+}
+EOF
+```
+
+Replace `CHAT_JID` with the current chat's JID (shown in your system prompt).
+
+*When to use buttons:*
+• Confirming an action before doing it ("Create this calendar event?")
+• Choosing between a small set of options ("Which account — Personal or Work?")
+• Approving a draft before sending ("Send this email?")
+• Quick preference questions ("Weekly or daily digest?")
+
+Button layout — each inner array is a row, keep labels short:
+• `[["Yes", "No"]]` — one row, two buttons
+• `[["Option A"], ["Option B"]]` — two rows
+• `[["Confirm", "Edit", "Cancel"]]` — one row, three buttons
+
+After writing the file, end your turn. The user's tap arrives as your next message (e.g. "Yes"). Then act on it.
+
 ### Sub-agents and teammates
 
 When working as a sub-agent or teammate, only use `send_message` if instructed to by the main agent.
@@ -46,6 +78,35 @@ When you learn something important:
 - Create files for structured data (e.g., `customers.md`, `preferences.md`)
 - Split files larger than 500 lines into folders
 - Keep an index in your memory for the files you create
+
+## Task Management
+
+You share a task list with Tristan (and with Claude Code in the nanoclaw directory). Use it proactively — not just when asked.
+
+*Reading tasks:* `cat /workspace/ipc/todo_snapshot.json` — shows all open tasks and projects.
+
+*Assignees:* `tristan` (Tristan's tasks) or `deltron` (your tasks).
+
+*When listing tasks for Tristan*, group by project and use this format:
+```
+*Open Tasks*
+
+[PFR] Performance Refactor
+• PFR-001 Fix slow queries [TR] HIGH - 20/03 {remind 20/03 09:00}
+  └─ PFR-001-a Profile DB layer [Del]
+• PFR-002 Cache review [Del]
+
+[TSK] Tasks
+• TSK-003 Write release notes [TR]
+```
+
+Formatting rules:
+- Assignee: [TR] for tristan, [Del] for deltron
+- Priority: LOW / MED / HIGH / CRIT
+- Date: dd/mm (use dd/mm/yy only if the date is more than ~11 months away)
+- Reminder: {remind dd/mm HH:MM} using 24h time — only show if task has a due date and reminder
+
+For full task management docs, see the `task-manager` skill.
 
 ## Message Formatting
 
