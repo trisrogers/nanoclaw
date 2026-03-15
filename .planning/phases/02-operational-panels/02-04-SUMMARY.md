@@ -68,10 +68,10 @@ completed: 2026-03-16
 
 ## Performance
 
-- **Duration:** 7 min
+- **Duration:** ~45 min
 - **Started:** 2026-03-15T21:55:25Z
-- **Completed:** 2026-03-16T09:03:00Z
-- **Tasks:** 2 of 3 (Task 3 is human-verify checkpoint — awaiting user confirmation)
+- **Completed:** 2026-03-16T22:15:00Z
+- **Tasks:** 3 of 3 (all complete including end-to-end verification)
 - **Files modified:** 13
 
 ## Accomplishments
@@ -80,6 +80,7 @@ completed: 2026-03-16
 - web:dashboard registered in-memory (not DB) — fully invisible to Groups panel and other channels
 - ChatPanel renders messenger-style bubbles with three-dot animated typing indicator, Enter-to-send, Shift+Enter for newline, auto-scroll
 - All 394 tests pass, TypeScript clean, dashboard builds without errors
+- End-to-end verified: message sent, typing indicator appeared, Deltron responded, no Telegram contamination, web:dashboard confirmed absent from DB
 
 ## Task Commits
 
@@ -88,8 +89,9 @@ Each task was committed atomically:
 1. **Task 1: RED stub** - `d394ea3` (test)
 2. **Task 1: GREEN implementation** - `058a82c` (feat)
 3. **Task 2: Wire server + ChatPanel** - `21dab74` (feat)
+4. **Fix: Replace crypto.randomUUID with HTTP-safe fallback** - `37272b9` (fix)
 
-**Checkpoint:** Task 3 is human-verify — user confirms end-to-end chat flow works.
+**Task 3** (end-to-end verification) confirmed by user after the two bugs above were fixed.
 
 _Note: TDD tasks have separate RED + GREEN commits_
 
@@ -129,24 +131,42 @@ _Note: TDD tasks have separate RED + GREEN commits_
 - **Verification:** Dashboard build passes
 - **Committed in:** 21dab74 (Task 2 commit)
 
+**3. [Rule 1 - Bug] crypto.randomUUID() unavailable on non-secure HTTP origin**
+- **Found during:** Task 3 verification (end-to-end chat test)
+- **Issue:** Chrome throws `TypeError: crypto.randomUUID is not a function` when the page is served over HTTP. ChatPanel used `crypto.randomUUID()` for message IDs; the dashboard runs on plain HTTP at localhost:3030.
+- **Fix:** Replaced with `genId()` helper: `Math.random().toString(36).slice(2) + Date.now().toString(36)`. Applied in both the React component and the server-side chat handler.
+- **Files modified:** `dashboard/src/components/ChatPanel.tsx`, `src/dashboard/chat-handler.ts`
+- **Verification:** Chat panel loaded without errors, messages received IDs correctly
+- **Committed in:** `37272b9`
+
+**4. [Rule 3 - Blocking] TypeScript dist/ not compiled — all /api/* routes returning HTML**
+- **Found during:** Task 3 verification (end-to-end chat test)
+- **Issue:** `SyntaxError: Unexpected token '<'` in browser console for all API fetch calls. The TypeScript source had not been compiled to `dist/`. The SPA catch-all in Express served `index.html` for all `/api/*` requests.
+- **Fix:** `npm run build && cd dashboard && npm run build`, then `systemctl --user restart nanoclaw`. `/api/stats` and `/api/channels` confirmed returning JSON.
+- **Files modified:** `dist/` (compiled output — not tracked in git)
+- **Verification:** `curl http://localhost:3030/api/stats` returned JSON; dashboard loaded correctly
+- **Committed in:** Build step only — no source change required
+
 ---
 
-**Total deviations:** 2 auto-fixed (both Rule 2 — missing critical correctness)
-**Impact on plan:** Both fixes necessary for correctness. No scope creep.
+**Total deviations:** 4 auto-fixed (2 Rule 2 — missing critical correctness, 1 Rule 1 — bug, 1 Rule 3 — blocking build step)
+**Impact on plan:** All fixes necessary for correctness and runtime operation. No scope creep.
 
 ## Issues Encountered
 
-None — implementation matched the plan spec closely.
+- `crypto.randomUUID()` throws on non-secure HTTP origins — established the `genId()` fallback pattern for any future client-side ID generation in the dashboard (HTTP context).
+- Uncompiled `dist/` caused all API routes to return HTML — a one-time build step issue resolved by running `npm run build` before service restart.
 
 ## Next Phase Readiness
 
-- Chat integration complete — web:dashboard routes messages through the full agent pipeline
-- Checkpoint Task 3 pending: user verifies end-to-end chat, typing indicator, and DB isolation
-- Once verified, Phase 2 plan 04 is done and the phase can advance to any remaining plans
+- All four chat requirements (CHAT-01 through CHAT-04) delivered and end-to-end verified
+- Phase 2 fully complete: Stats, Channels, Containers, Logs, and Chat panels operational
+- Phase 3 (usage panel, Claude metrics) can proceed without blockers
+- One open research flag: `claude /usage` output format is undocumented — needs empirical testing before building the parsing endpoint (noted for 03-05)
 
 ## Self-Check: PASSED
 
-All created files exist on disk. All task commits verified in git log.
+All created files exist on disk. All task commits (d394ea3, 058a82c, 21dab74, 37272b9) verified in git log. Task 3 end-to-end verification confirmed by user.
 
 ---
 *Phase: 02-operational-panels*

@@ -23,16 +23,16 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Chat
 
-- [ ] **CHAT-01**: User can send messages to Deltron from the dashboard using an isolated dashboard session (JID: `web:dashboard`)
-- [ ] **CHAT-02**: User receives Deltron's responses in real-time via WebSocket
-- [ ] **CHAT-03**: Dashboard chat session is isolated from Telegram and all other group sessions
-- [ ] **CHAT-04**: User can see a typing/thinking indicator while Deltron is processing
+- [x] **CHAT-01**: User can send messages to Deltron from the dashboard using an isolated dashboard session (JID: `web:dashboard`)
+- [x] **CHAT-02**: User receives Deltron's responses in real-time via WebSocket
+- [x] **CHAT-03**: Dashboard chat session is isolated from Telegram and all other group sessions
+- [x] **CHAT-04**: User can see a typing/thinking indicator while Deltron is processing
 
 ### Operations
 
-- [ ] **OPS-01**: User can view container status per group (running / idle / stopped) with elapsed time for active containers
-- [ ] **OPS-02**: User can clear a group's session from the dashboard (confirmation required)
-- [ ] **OPS-03**: User can restart a group's container from the dashboard (confirmation required)
+- [x] **OPS-01**: User can view container status per group (running / idle / stopped) with elapsed time for active containers
+- [x] **OPS-02**: User can clear a group's session from the dashboard (confirmation required)
+- [x] **OPS-03**: User can restart a group's container from the dashboard (confirmation required)
 - [x] **OPS-04**: User can view agent activity logs (last 200 lines from Pino JSON log files) with level filtering
 - [x] **OPS-05**: Log viewer refreshes automatically every 5 seconds
 
@@ -128,10 +128,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INFRA-06 | Phase 1 | 01-02 | Pending |
 | OVER-01 | Phase 2 | 02-01 | Pending |
 | OVER-02 | Phase 2 | 02-01 | Pending |
-| CHAT-01 | Phase 2 | 02-04 | Pending |
-| CHAT-02 | Phase 2 | 02-04 | Pending |
-| CHAT-03 | Phase 2 | 02-04 | Pending |
-| CHAT-04 | Phase 2 | 02-04 | Pending |
+| CHAT-01 | Phase 2 | 02-04 | Complete |
+| CHAT-02 | Phase 2 | 02-04 | Complete |
+| CHAT-03 | Phase 2 | 02-04 | Complete |
+| CHAT-04 | Phase 2 | 02-04 | Complete |
 | OPS-01 | Phase 2 | 02-02 | Pending |
 | OPS-02 | Phase 2 | 02-02 | Pending |
 | OPS-03 | Phase 2 | 02-02 | Pending |
