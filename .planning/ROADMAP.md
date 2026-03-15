@@ -44,13 +44,13 @@ Plans:
   3. User can see container status (running / idle / stopped with elapsed time) for every group, and can clear a session or restart a container with a confirmation prompt
   4. User can view the last 200 lines of Pino logs with level filtering, refreshing automatically every 5 seconds
   5. User can see all registered groups and channels with their JID, isMain status, and connection state, plus a status overview showing channels connected, active containers, pending tasks, and last error
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 02-01: Status overview panel + groups/channels panel (REST endpoints + React panels, 10s auto-refresh)
-- [ ] 02-02: Container status panel with clear-session and restart-container quick actions (OPS-01 through OPS-03)
-- [ ] 02-03: Log viewer panel (last 200 lines, level filter, 5s auto-refresh) (OPS-04, OPS-05)
-- [ ] 02-04: Dashboard chat channel registration (`web:dashboard` JID) + WebSocket handler + chat UI panel (CHAT-01 through CHAT-04)
+- [ ] 02-01-PLAN.md — DashboardDeps injection + /api/stats + /api/channels + OverviewPanel + GroupsPanel (OVER-01, OVER-02, GRP-01, GRP-02)
+- [ ] 02-02-PLAN.md — /api/containers route + ContainersPanel with inline-confirm actions (OPS-01, OPS-02, OPS-03)
+- [ ] 02-03-PLAN.md — /api/logs route + LogsPanel with level filter and smart auto-scroll (OPS-04, OPS-05)
+- [ ] 02-04-PLAN.md — WebDashboardChannel + chat handler + ChatPanel messenger UI (CHAT-01, CHAT-02, CHAT-03, CHAT-04)
 
 ### Phase 3: Data Panels
 **Goal**: Users can inspect historical data and edit NanoClaw configuration from the dashboard
