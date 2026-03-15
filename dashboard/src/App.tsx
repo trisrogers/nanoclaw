@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import ContainersPanel from './components/ContainersPanel';
 import GroupsPanel from './components/GroupsPanel';
 import LogsPanel from './components/LogsPanel';
 import OverviewPanel from './components/OverviewPanel';
@@ -51,9 +52,10 @@ export default function App() {
       {/* Main content */}
       <main className="flex-1 overflow-auto p-6">
         {active === 'Overview' && <OverviewPanel />}
+        {active === 'Containers' && <ContainersPanel />}
         {active === 'Groups' && <GroupsPanel />}
         {active === 'Logs' && <LogsPanel />}
-        {!['Overview', 'Groups', 'Logs'].includes(active) && (
+        {!['Overview', 'Containers', 'Groups', 'Logs'].includes(active) && (
           <div className="text-gray-500 text-sm">
             <h1 className="text-xl font-semibold text-gray-200 mb-2">
               {active}
