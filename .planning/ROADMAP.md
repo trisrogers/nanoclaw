@@ -62,14 +62,14 @@ Plans:
   3. User can view all scheduled tasks with schedule, last run, next run, and status, plus the last 20 runs per task including output and errors
   4. User can view all todo items grouped by project with status, due dates, and assignee visible across all groups
   5. User can view Claude Code Pro usage on demand (session usage, weekly limit, reset time) with a 60-second cache preventing repeated CLI invocations
-**Plans**: TBD
+**Plans**: 5 plans
 
 Plans:
-- [ ] 03-01: Message history panel (paginated + search, LIMIT enforced, composite index verified) (MSG-01, MSG-02)
-- [ ] 03-02: CLAUDE.md editor panel (global + per-group, path traversal guard) (MEM-01 through MEM-03)
-- [ ] 03-03: Scheduled tasks panel (list + run history) (TASK-01, TASK-02)
-- [ ] 03-04: Todos board panel (all groups, grouped by project) (TODO-01, TODO-02)
-- [ ] 03-05: Claude usage panel (on-demand CLI parse, 60s TTL cache) (USAGE-01, USAGE-02)
+- [ ] 03-01-PLAN.md — getMessagesByGroup DB query + /api/messages route + MessagesPanel (MSG-01, MSG-02)
+- [ ] 03-02-PLAN.md — /api/memory GET+PUT with path traversal guard + MemoryPanel editor (MEM-01, MEM-02, MEM-03)
+- [ ] 03-03-PLAN.md — getTaskRunLogs DB query + /api/tasks route + TasksPanel expandable table (TASK-01, TASK-02)
+- [ ] 03-04-PLAN.md — /api/todos route + TodosPanel collapsible project sections (TODO-01, TODO-02)
+- [ ] 03-05-PLAN.md — /api/usage with 60s cache + UsagePanel + App.tsx wiring all 5 panels (USAGE-01, USAGE-02)
 
 ## Progress
 
