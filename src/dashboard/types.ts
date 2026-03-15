@@ -1,4 +1,4 @@
-import { Channel } from '../types.js';
+import { Channel, RegisteredGroup } from '../types.js';
 
 export interface ContainerSnapshot {
   jid: string;
@@ -16,4 +16,7 @@ export interface DashboardDeps {
   getIpcQueueDepth: () => number;
   getTodosDueToday: () => number;
   getLastError: () => string | null;
+  getRegisteredGroups: () => Record<string, RegisteredGroup>;
+  clearGroupSession: (folder: string) => { ok: boolean; error?: string };
+  restartGroupContainer: (folder: string) => { ok: boolean; error?: string };
 }
