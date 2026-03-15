@@ -118,24 +118,44 @@ Explicitly excluded. Documented to prevent scope creep.
 
 Which phases cover which requirements. Updated during roadmap creation.
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| INFRA-01 to INFRA-06 | Phase 1 | Pending |
-| OVER-01, OVER-02 | Phase 2 | Pending |
-| CHAT-01 to CHAT-04 | Phase 2 | Pending |
-| OPS-01 to OPS-05 | Phase 2 | Pending |
-| GRP-01, GRP-02 | Phase 2 | Pending |
-| MSG-01, MSG-02 | Phase 3 | Pending |
-| MEM-01 to MEM-03 | Phase 3 | Pending |
-| TASK-01, TASK-02 | Phase 3 | Pending |
-| TODO-01, TODO-02 | Phase 3 | Pending |
-| USAGE-01, USAGE-02 | Phase 3 | Pending |
+| Requirement | Phase | Plan | Status |
+|-------------|-------|------|--------|
+| INFRA-01 | Phase 1 | 01-01 | Pending |
+| INFRA-02 | Phase 1 | 01-02 | Pending |
+| INFRA-03 | Phase 1 | 01-01 | Pending |
+| INFRA-04 | Phase 1 | 01-01 | Pending |
+| INFRA-05 | Phase 1 | 01-01 | Pending |
+| INFRA-06 | Phase 1 | 01-02 | Pending |
+| OVER-01 | Phase 2 | 02-01 | Pending |
+| OVER-02 | Phase 2 | 02-01 | Pending |
+| CHAT-01 | Phase 2 | 02-04 | Pending |
+| CHAT-02 | Phase 2 | 02-04 | Pending |
+| CHAT-03 | Phase 2 | 02-04 | Pending |
+| CHAT-04 | Phase 2 | 02-04 | Pending |
+| OPS-01 | Phase 2 | 02-02 | Pending |
+| OPS-02 | Phase 2 | 02-02 | Pending |
+| OPS-03 | Phase 2 | 02-02 | Pending |
+| OPS-04 | Phase 2 | 02-03 | Pending |
+| OPS-05 | Phase 2 | 02-03 | Pending |
+| GRP-01 | Phase 2 | 02-01 | Pending |
+| GRP-02 | Phase 2 | 02-01 | Pending |
+| MSG-01 | Phase 3 | 03-01 | Pending |
+| MSG-02 | Phase 3 | 03-01 | Pending |
+| MEM-01 | Phase 3 | 03-02 | Pending |
+| MEM-02 | Phase 3 | 03-02 | Pending |
+| MEM-03 | Phase 3 | 03-02 | Pending |
+| TASK-01 | Phase 3 | 03-03 | Pending |
+| TASK-02 | Phase 3 | 03-03 | Pending |
+| TODO-01 | Phase 3 | 03-04 | Pending |
+| TODO-02 | Phase 3 | 03-04 | Pending |
+| USAGE-01 | Phase 3 | 03-05 | Pending |
+| USAGE-02 | Phase 3 | 03-05 | Pending |
 
 **Coverage:**
 - v1 requirements: 30 total
 - Mapped to phases: 30
-- Unmapped: 0 ✓
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-15*
-*Last updated: 2026-03-15 after initial definition*
+*Last updated: 2026-03-15 — traceability expanded with per-requirement rows and plan assignments after roadmap creation*
