@@ -10,27 +10,27 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 ## Current Position
 
 Phase: 1 of 3 (Foundation)
-Plan: 0 of 2 in current phase
-Status: Ready to plan
-Last activity: 2026-03-15 — Roadmap created, 30/30 requirements mapped across 3 phases
+Plan: 1 of 5 in current phase
+Status: In progress
+Last activity: 2026-03-15 — Completed 01-01 (HTTP + WebSocket server)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██░░░░░░░░] 20%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: -
+- Total plans completed: 1
+- Average duration: ~45 min
+- Total execution time: ~45 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 01-foundation | 1 | ~45 min | ~45 min |
 
 **Recent Trend:**
-- Last 5 plans: none yet
+- Last 5 plans: 01-01 (~45 min)
 - Trend: -
 
 *Updated after each plan completion*
@@ -47,6 +47,9 @@ Recent decisions affecting current work:
 - WebSocket only for chat; all other panels use polling REST
 - HTTP server MUST be added to shutdown handler in the same plan it is created (Phase 1, plan 01-01)
 - All DB query endpoints need LIMIT clauses (better-sqlite3 is synchronous, blocks Telegram delivery)
+- [01-01] dashboardServer.close() placed as FIRST call in shutdown() — prevents 90-second hang on systemctl restart
+- [01-01] Server binds to 0.0.0.0 by default (DASHBOARD_BIND env var) — required for WSL host access
+- [01-01] Static dist path resolved with process.cwd() not __dirname — required under systemd
 
 ### Pending Todos
 
@@ -61,5 +64,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-15
-Stopped at: Roadmap created. Ready to plan Phase 1.
+Stopped at: Completed 01-01-PLAN.md (HTTP + WebSocket server, human-verified clean restart)
 Resume file: None
