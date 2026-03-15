@@ -57,6 +57,19 @@ const mockDeps: DashboardDeps = {
     }
     return { ok: false, error: 'Group not found' };
   },
+  webDashboardChannel: {
+    addClient: () => {},
+    removeClient: () => {},
+    getClientCount: () => 0,
+    name: 'web-dashboard',
+    connect: async () => {},
+    sendMessage: async () => {},
+    isConnected: () => true,
+    ownsJid: (jid: string) => jid === 'web:dashboard',
+    disconnect: async () => {},
+  } as unknown as import('../../channels/web-dashboard.js').WebDashboardChannel,
+  storeMessage: () => {},
+  enqueueMessageCheck: () => {},
 };
 
 describe('GET /api/containers', () => {
@@ -81,7 +94,9 @@ describe('GET /api/containers', () => {
     expect(typeof row.active).toBe('boolean');
     expect(typeof row.groupName).toBe('string');
     // containerName can be string or null
-    expect(row.elapsedMs === null || typeof row.elapsedMs === 'number').toBe(true);
+    expect(row.elapsedMs === null || typeof row.elapsedMs === 'number').toBe(
+      true,
+    );
   });
 
   it('groupName is resolved from registered groups', async () => {
@@ -99,7 +114,9 @@ describe('POST /api/containers/:folder/clear', () => {
     const { containersRouter } = await import('./containers.js');
     const app = express();
     app.use('/api', containersRouter(mockDeps));
-    const res = await supertest(app).post('/api/containers/telegram_main/clear');
+    const res = await supertest(app).post(
+      '/api/containers/telegram_main/clear',
+    );
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
   });
@@ -108,7 +125,9 @@ describe('POST /api/containers/:folder/clear', () => {
     const { containersRouter } = await import('./containers.js');
     const app = express();
     app.use('/api', containersRouter(mockDeps));
-    const res = await supertest(app).post('/api/containers/no_such_folder/clear');
+    const res = await supertest(app).post(
+      '/api/containers/no_such_folder/clear',
+    );
     expect(res.status).toBe(404);
   });
 });
@@ -127,7 +146,9 @@ describe('POST /api/containers/:folder/restart', () => {
     const { containersRouter } = await import('./containers.js');
     const app = express();
     app.use('/api', containersRouter(mockDeps));
-    const res = await supertest(app).post('/api/containers/ghost_folder/restart');
+    const res = await supertest(app).post(
+      '/api/containers/ghost_folder/restart',
+    );
     expect(res.status).toBe(404);
   });
 });

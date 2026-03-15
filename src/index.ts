@@ -84,6 +84,7 @@ let messageLoopRunning = false;
 
 const channels: Channel[] = [];
 const queue = new GroupQueue();
+const webDashboardChannel = new WebDashboardChannel();
 
 function loadState(): void {
   lastTimestamp = getRouterState('last_timestamp') || '';
@@ -605,6 +606,9 @@ async function main(): Promise<void> {
         return { ok: false, error: String(e) };
       }
     },
+    webDashboardChannel,
+    storeMessage,
+    enqueueMessageCheck: (jid: string) => queue.enqueueMessageCheck(jid),
   };
 
   // Start dashboard HTTP + WebSocket server
@@ -797,6 +801,17 @@ async function main(): Promise<void> {
     writeGroupsSnapshot: (gf, im, ag, rj) =>
       writeGroupsSnapshot(gf, im, ag, rj),
   });
+  // Register dashboard channel and group (in-memory only — NOT persisted to DB)
+  channels.push(webDashboardChannel);
+  registeredGroups['web:dashboard'] = {
+    name: 'Dashboard',
+    folder: 'dashboard',
+    trigger: '',
+    added_at: new Date().toISOString(),
+    isMain: true,
+    requiresTrigger: false,
+  };
+
   queue.setProcessMessagesFn(processGroupMessages);
   recoverPendingMessages();
   startMessageLoop().catch((err) => {

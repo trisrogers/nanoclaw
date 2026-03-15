@@ -39,7 +39,8 @@ describe('createChatHandler', () => {
   let mockEnqueueMessageCheck: ReturnType<typeof vi.fn>;
   let deps: DashboardDeps;
   let ws: MockWebSocket;
-  let handler: (ws: unknown) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let handler: (ws: any) => void;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -53,6 +54,9 @@ describe('createChatHandler', () => {
       getIpcQueueDepth: () => 0,
       getTodosDueToday: () => 0,
       getLastError: () => null,
+      getRegisteredGroups: () => ({}),
+      clearGroupSession: () => ({ ok: true }),
+      restartGroupContainer: () => ({ ok: true }),
       webDashboardChannel: {
         addClient: mockAddClient,
         removeClient: mockRemoveClient,
@@ -65,8 +69,10 @@ describe('createChatHandler', () => {
         name: 'web-dashboard',
         getClientCount: () => 0,
       } as unknown as import('../channels/web-dashboard.js').WebDashboardChannel,
-      storeMessage: mockStoreMessage,
-      enqueueMessageCheck: mockEnqueueMessageCheck,
+      storeMessage:
+        mockStoreMessage as unknown as DashboardDeps['storeMessage'],
+      enqueueMessageCheck:
+        mockEnqueueMessageCheck as unknown as DashboardDeps['enqueueMessageCheck'],
     };
 
     ws = new MockWebSocket();
@@ -103,9 +109,7 @@ describe('createChatHandler', () => {
 
   it('does not throw on malformed JSON', () => {
     handler(ws);
-    expect(() =>
-      ws.emit('message', Buffer.from('not-json')),
-    ).not.toThrow();
+    expect(() => ws.emit('message', Buffer.from('not-json'))).not.toThrow();
     expect(mockStoreMessage).not.toHaveBeenCalled();
   });
 

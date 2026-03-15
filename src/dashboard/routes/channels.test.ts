@@ -21,6 +21,22 @@ const mockDeps: DashboardDeps = {
   getIpcQueueDepth: () => 0,
   getTodosDueToday: () => 0,
   getLastError: () => null,
+  getRegisteredGroups: () => ({}),
+  clearGroupSession: () => ({ ok: true }),
+  restartGroupContainer: () => ({ ok: true }),
+  webDashboardChannel: {
+    addClient: () => {},
+    removeClient: () => {},
+    getClientCount: () => 0,
+    name: 'web-dashboard',
+    connect: async () => {},
+    sendMessage: async () => {},
+    isConnected: () => true,
+    ownsJid: (jid: string) => jid === 'web:dashboard',
+    disconnect: async () => {},
+  } as unknown as import('../../channels/web-dashboard.js').WebDashboardChannel,
+  storeMessage: () => {},
+  enqueueMessageCheck: () => {},
 };
 
 describe('GET /api/channels', () => {

@@ -1,4 +1,5 @@
-import { Channel, RegisteredGroup } from '../types.js';
+import { Channel, NewMessage, RegisteredGroup } from '../types.js';
+import { WebDashboardChannel } from '../channels/web-dashboard.js';
 
 export interface ContainerSnapshot {
   jid: string;
@@ -19,4 +20,7 @@ export interface DashboardDeps {
   getRegisteredGroups: () => Record<string, RegisteredGroup>;
   clearGroupSession: (folder: string) => { ok: boolean; error?: string };
   restartGroupContainer: (folder: string) => { ok: boolean; error?: string };
+  webDashboardChannel: WebDashboardChannel;
+  storeMessage: (msg: NewMessage) => void;
+  enqueueMessageCheck: (jid: string) => void;
 }
