@@ -18,8 +18,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Overview
 
-- [ ] **OVER-01**: User can view a status overview panel showing: channels connected, active containers, pending tasks, and last error
-- [ ] **OVER-02**: Status overview data refreshes automatically every 10 seconds
+- [x] **OVER-01**: User can view a status overview panel showing: channels connected, active containers, pending tasks, and last error
+- [x] **OVER-02**: Status overview data refreshes automatically every 10 seconds
 
 ### Chat
 
@@ -33,13 +33,13 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **OPS-01**: User can view container status per group (running / idle / stopped) with elapsed time for active containers
 - [ ] **OPS-02**: User can clear a group's session from the dashboard (confirmation required)
 - [ ] **OPS-03**: User can restart a group's container from the dashboard (confirmation required)
-- [ ] **OPS-04**: User can view agent activity logs (last 200 lines from Pino JSON log files) with level filtering
-- [ ] **OPS-05**: Log viewer refreshes automatically every 5 seconds
+- [x] **OPS-04**: User can view agent activity logs (last 200 lines from Pino JSON log files) with level filtering
+- [x] **OPS-05**: Log viewer refreshes automatically every 5 seconds
 
 ### Groups & Channels
 
-- [ ] **GRP-01**: User can view all registered groups with their JID, folder, isMain status, and requiresTrigger setting
-- [ ] **GRP-02**: User can view all channels with their connection status (connected / disconnected)
+- [x] **GRP-01**: User can view all registered groups with their JID, folder, isMain status, and requiresTrigger setting
+- [x] **GRP-02**: User can view all channels with their connection status (connected / disconnected)
 
 ### Message History
 

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-03-PLAN.md (logs panel)
-last_updated: "2026-03-15T21:48:54.260Z"
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-03-15T21:53:32.013Z"
 last_activity: 2026-03-16 — Completed 01-02 (React/Vite SPA dashboard + /api/groups)
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 6
-  completed_plans: 3
+  completed_plans: 4
   percent: 40
 ---
 
@@ -51,6 +51,7 @@ Progress: [████░░░░░░] 40%
 
 *Updated after each plan completion*
 | Phase 02-operational-panels P03 | 8 | 2 tasks | 6 files |
+| Phase 02-operational-panels P01 | 10 | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,9 @@ Recent decisions affecting current work:
 - [01-02] Vite dev proxy on port 5173 with ws:true for /ws — eliminates CORS and confirms WebSocket proxy works
 - [Phase 02-operational-panels]: logsRouter takes no DashboardDeps — reads log file directly, no DB dependency
 - [Phase 02-operational-panels]: Level filter is client-side only — no extra requests when switching levels
+- [Phase 02-01]: DashboardDeps interface with factory functions injected into startDashboardServer — avoids module-level state, enables test isolation
+- [Phase 02-01]: statsRouter and channelsRouter are factory functions returning Express Router — deps passed at construction, fully testable with mock objects
+- [Phase 02-01]: dashboardDeps stored as module-scoped let in server.ts for future WebSocket chat handler (02-04) access
 
 ### Pending Todos
 
@@ -86,6 +90,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T21:48:54.258Z
-Stopped at: Completed 02-03-PLAN.md (logs panel)
+Last session: 2026-03-15T21:53:32.011Z
+Stopped at: Completed 02-01-PLAN.md
 Resume file: None
