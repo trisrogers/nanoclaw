@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-03-15T21:53:32.013Z"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-03-15T21:59:23.702Z"
 last_activity: 2026-03-16 — Completed 01-02 (React/Vite SPA dashboard + /api/groups)
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 40
 ---
 
@@ -52,6 +52,7 @@ Progress: [████░░░░░░] 40%
 *Updated after each plan completion*
 | Phase 02-operational-panels P03 | 8 | 2 tasks | 6 files |
 | Phase 02-operational-panels P01 | 10 | 3 tasks | 12 files |
+| Phase 02-operational-panels P02 | 3 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,8 @@ Recent decisions affecting current work:
 - [Phase 02-01]: DashboardDeps interface with factory functions injected into startDashboardServer — avoids module-level state, enables test isolation
 - [Phase 02-01]: statsRouter and channelsRouter are factory functions returning Express Router — deps passed at construction, fully testable with mock objects
 - [Phase 02-01]: dashboardDeps stored as module-scoped let in server.ts for future WebSocket chat handler (02-04) access
+- [Phase 02-02]: Restart signals closeStdin only — next message naturally spins up fresh container without extra restart logic
+- [Phase 02-02]: Inline confirm via ActionButton transform — no modal, Confirm?/Cancel pair replaces button text
 
 ### Pending Todos
 
@@ -90,6 +93,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T21:53:32.011Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-03-15T21:59:18.789Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None

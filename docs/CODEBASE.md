@@ -28,10 +28,11 @@ nanoclaw/
 │   │   ├── server.ts       # Dashboard HTTP + WebSocket server (startDashboardServer(port, host, deps))
 │   │   ├── types.ts        # DashboardDeps + ContainerSnapshot interfaces
 │   │   └── routes/
-│   │       ├── groups.ts   # GET /api/groups — registered groups from DB (LIMIT 100)
-│   │       ├── logs.ts     # GET /api/logs — last 200 parsed pino-pretty log entries
-│   │       ├── stats.ts    # GET /api/stats — 5-key live metrics (channels, containers, IPC, todos, error)
-│   │       └── channels.ts # GET /api/channels — channel name + connection status array
+│   │       ├── groups.ts      # GET /api/groups — registered groups from DB (LIMIT 100)
+│   │       ├── logs.ts        # GET /api/logs — last 200 parsed pino-pretty log entries
+│   │       ├── stats.ts       # GET /api/stats — 5-key live metrics (channels, containers, IPC, todos, error)
+│   │       ├── channels.ts    # GET /api/channels — channel name + connection status array
+│   │       └── containers.ts  # GET /api/containers, POST /api/containers/:folder/clear|restart
 │   ├── ipc.ts              # Watches IPC dirs for container → host communication
 │   ├── task-scheduler.ts   # Runs scheduled tasks (cron / interval / once)
 │   ├── todo.ts             # Todo/task CRUD (projects, items, reminders)
@@ -159,13 +160,20 @@ runTask(task)  [task-scheduler.ts]
 ### `src/dashboard/server.ts` — Dashboard HTTP Server
 Provides the web dashboard entry point.
 - `startDashboardServer(port, bindHost, deps)`: creates Express app + http.Server, attaches WebSocket server on `/ws/chat`
-- Route order: `GET /api/health` → `app.use('/api', groupsRouter)` → `app.use('/api', logsRouter())` → `express.static(dashboard/dist/)` → SPA catch-all
+- Route order: `GET /api/health` → statsRouter → channelsRouter → containersRouter → groupsRouter → logsRouter → `express.static(dashboard/dist/)` → SPA catch-all
+- `DashboardDeps` (from `src/dashboard/types.ts`) includes: `getChannels`, `getQueueSnapshot`, `getActiveContainerCount`, `getIpcQueueDepth`, `getTodosDueToday`, `getLastError`, `getRegisteredGroups`, `clearGroupSession`, `restartGroupContainer`
 - Returns `http.Server` — caller owns the lifecycle (no SIGTERM handler inside)
 - Port default 3030 (via `DASHBOARD_PORT` env var), binds to `0.0.0.0` by default
 
 ### `src/dashboard/routes/groups.ts` — Groups API
 - `GET /api/groups`: queries `registered_groups` table, returns JSON array with LIMIT 100
 - Fields returned: `jid`, `name`, `folder`, `isMain`, `requiresTrigger`
+
+### `src/dashboard/routes/containers.ts` — Containers API
+- `GET /api/containers`: merges `GroupQueue.getSnapshot()` with registered group names; returns `{ jid, active, containerName, elapsedMs, groupFolder, startedAt, groupName }[]`
+- `POST /api/containers/:folder/clear`: calls `clearGroupSession(folder)` → `clearSession()` (DB) + `delete sessions[jid]` (memory) + `queue.closeStdin(jid)`; returns `{ ok: true }` or 404/500
+- `POST /api/containers/:folder/restart`: calls `restartGroupContainer(folder)` → `queue.closeStdin(jid)`; next message naturally spins up a fresh container; returns `{ ok: true }` or 404/500
+- Unknown `folder` returns 404 on all POST routes
 
 ### `src/dashboard/routes/logs.ts` — Logs API
 - `GET /api/logs`: reads `logs/nanoclaw.log`, returns last 200 parsed entries as JSON array
@@ -175,8 +183,9 @@ Provides the web dashboard entry point.
 
 ### `dashboard/` — React/Vite SPA
 - Vite 8 + React 19 + TypeScript + Tailwind CSS v4 (via `@tailwindcss/vite` plugin)
-- `dashboard/src/App.tsx`: sidebar layout with 10 nav items; Logs nav item renders LogsPanel
+- `dashboard/src/App.tsx`: sidebar layout with 10 nav items; Overview, Containers, Groups, Logs panels implemented
 - `dashboard/src/components/LogsPanel.tsx`: log viewer — 5s auto-refresh, client-side level filter, smart auto-scroll
+- `dashboard/src/components/ContainersPanel.tsx`: container status table — colour-coded status badges, inline confirm actions (Clear Session / Restart), 3s toast feedback, polls every 10s
 - `dashboard/vite.config.ts`: proxies `/api` and `/ws` to `http://localhost:3030` in dev mode
 - Build output: `dashboard/dist/` (served by Express `express.static`)
 - Build command: `npm run build:dashboard` (from root) or `npm run build` (from dashboard/)
