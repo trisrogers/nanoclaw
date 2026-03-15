@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+import LogsPanel from './components/LogsPanel';
+
 const NAV_ITEMS = [
   'Overview',
   'Chat',
@@ -47,9 +49,13 @@ export default function App() {
       {/* Main content */}
       <main className="flex-1 overflow-auto p-8">
         <h1 className="text-xl font-semibold text-gray-200 mb-2">{active}</h1>
-        <p className="text-gray-500 text-sm">
-          Select a panel from the sidebar to get started.
-        </p>
+        {active === 'Logs' ? (
+          <LogsPanel />
+        ) : (
+          <p className="text-gray-500 text-sm">
+            Select a panel from the sidebar to get started.
+          </p>
+        )}
       </main>
     </div>
   );
