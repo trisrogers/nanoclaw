@@ -28,11 +28,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The Vite dev server proxies `/api` and `/ws` requests to the backend — `npm run dev` inside `dashboard/` works without CORS errors
   4. A production build (`npm run build`) produces a `dashboard/dist/` that Express serves correctly, including SPA route fallback
   5. The dashboard is reachable from another machine on the LAN (bound to `0.0.0.0`, not `127.0.0.1`)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: Add Express HTTP server + ws WebSocket server to NanoClaw process (shutdown handler integration included)
-- [ ] 01-02: Scaffold React + Vite SPA in `dashboard/` with sidebar layout and `/api/health` + `/api/groups` read-only endpoints
+- [ ] 01-01-PLAN.md — Express + ws backend server, shutdown handler integration, unit tests (INFRA-01, INFRA-03, INFRA-04, INFRA-05)
+- [ ] 01-02-PLAN.md — React/Vite SPA scaffold with sidebar layout, /api/groups endpoint, production build pipeline verified (INFRA-02, INFRA-06)
 
 ### Phase 2: Operational Panels
 **Goal**: Users can monitor NanoClaw's live state and chat with Deltron from the browser without touching the terminal
