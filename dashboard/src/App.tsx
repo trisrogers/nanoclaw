@@ -1,6 +1,8 @@
 import { useState } from 'react';
 
+import GroupsPanel from './components/GroupsPanel';
 import LogsPanel from './components/LogsPanel';
+import OverviewPanel from './components/OverviewPanel';
 
 const NAV_ITEMS = [
   'Overview',
@@ -47,14 +49,17 @@ export default function App() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto p-8">
-        <h1 className="text-xl font-semibold text-gray-200 mb-2">{active}</h1>
-        {active === 'Logs' ? (
-          <LogsPanel />
-        ) : (
-          <p className="text-gray-500 text-sm">
-            Select a panel from the sidebar to get started.
-          </p>
+      <main className="flex-1 overflow-auto p-6">
+        {active === 'Overview' && <OverviewPanel />}
+        {active === 'Groups' && <GroupsPanel />}
+        {active === 'Logs' && <LogsPanel />}
+        {!['Overview', 'Groups', 'Logs'].includes(active) && (
+          <div className="text-gray-500 text-sm">
+            <h1 className="text-xl font-semibold text-gray-200 mb-2">
+              {active}
+            </h1>
+            <p>Panel coming soon.</p>
+          </div>
         )}
       </main>
     </div>
