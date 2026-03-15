@@ -24,6 +24,12 @@ nanoclaw/
 │   ├── container-runner.ts # Spawns Docker containers for agent execution
 │   ├── container-runtime.ts# Docker CLI abstraction (runtime detection, mounts)
 │   ├── credential-proxy.ts # HTTP proxy that injects credentials into containers
+│   ├── dashboard/
+│   │   ├── server.ts       # Dashboard HTTP + WebSocket server (startDashboardServer)
+│   │   ├── types.ts        # DashboardDeps interface
+│   │   └── routes/
+│   │       ├── groups.ts   # GET /api/groups — registered groups from DB (LIMIT 100)
+│   │       └── logs.ts     # GET /api/logs — last 200 parsed pino-pretty log entries
 │   ├── ipc.ts              # Watches IPC dirs for container → host communication
 │   ├── task-scheduler.ts   # Runs scheduled tasks (cron / interval / once)
 │   ├── todo.ts             # Todo/task CRUD (projects, items, reminders)
@@ -148,9 +154,34 @@ runTask(task)  [task-scheduler.ts]
 
 ## Key Files — Detailed Responsibilities
 
+### `src/dashboard/server.ts` — Dashboard HTTP Server
+Provides the web dashboard entry point.
+- `startDashboardServer(port, bindHost, deps)`: creates Express app + http.Server, attaches WebSocket server on `/ws/chat`
+- Route order: `GET /api/health` → `app.use('/api', groupsRouter)` → `app.use('/api', logsRouter())` → `express.static(dashboard/dist/)` → SPA catch-all
+- Returns `http.Server` — caller owns the lifecycle (no SIGTERM handler inside)
+- Port default 3030 (via `DASHBOARD_PORT` env var), binds to `0.0.0.0` by default
+
+### `src/dashboard/routes/groups.ts` — Groups API
+- `GET /api/groups`: queries `registered_groups` table, returns JSON array with LIMIT 100
+- Fields returned: `jid`, `name`, `folder`, `isMain`, `requiresTrigger`
+
+### `src/dashboard/routes/logs.ts` — Logs API
+- `GET /api/logs`: reads `logs/nanoclaw.log`, returns last 200 parsed entries as JSON array
+- Parses pino-pretty TEXT format (not JSON) — strips ANSI codes, merges continuation lines
+- Missing or unreadable log file returns 200 empty array (never 500)
+- Exports `parseLogLines(rawLines)` for unit testing
+
+### `dashboard/` — React/Vite SPA
+- Vite 8 + React 19 + TypeScript + Tailwind CSS v4 (via `@tailwindcss/vite` plugin)
+- `dashboard/src/App.tsx`: sidebar layout with 10 nav items; Logs nav item renders LogsPanel
+- `dashboard/src/components/LogsPanel.tsx`: log viewer — 5s auto-refresh, client-side level filter, smart auto-scroll
+- `dashboard/vite.config.ts`: proxies `/api` and `/ws` to `http://localhost:3030` in dev mode
+- Build output: `dashboard/dist/` (served by Express `express.static`)
+- Build command: `npm run build:dashboard` (from root) or `npm run build` (from dashboard/)
+
 ### `src/index.ts` — Orchestrator
 The entry point. Calls everything else. Key responsibilities:
-- `main()`: init DB, start credential proxy, start container runtime, connect channels, start message loop + IPC watcher + scheduler
+- `main()`: init DB, start credential proxy, start dashboard server, start container runtime, connect channels, start message loop + IPC watcher + scheduler
 - `startMessageLoop()`: polls for new messages, applies trigger/sender filtering, dispatches to queue
 - `processGroupMessages()`: builds XML prompt, calls `runAgent()`
 - `runAgent()`: wraps `runContainerAgent()`, tracks sessions, streams output back to channel
