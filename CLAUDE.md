@@ -11,7 +11,9 @@ Personal Claude assistant. See [README.md](README.md) for philosophy and setup. 
 
 ## Quick Context
 
-Single Node.js process with skill-based channel system. Channels (Telegram, Gmail) self-register at startup. Messages route to Claude Agent SDK running in Docker containers. Each group has isolated filesystem, session, and IPC namespace. Active channels: **Telegram** (primary), **Gmail** (delivers to Telegram main group). Discord is disabled.
+Single Node.js process with skill-based channel system. Channels (Telegram, Gmail) self-register at startup. Messages route to Claude Agent SDK running in Docker containers. Each group has isolated filesystem, session, and IPC namespace. Active channels: **Telegram** (primary with optional agent team bot pool), **Gmail** (delivers to Telegram main group). Discord is disabled.
+
+**Agent Teams** (Telegram): Create multi-agent conversations where each team member has a distinct Telegram bot identity. Configure `TELEGRAM_BOT_POOL` env var with comma-separated bot tokens to enable. Team agents use `mcp__nanoclaw__send_message` with `sender` parameter to route messages through their assigned pool bot.
 
 ## Key Files
 
@@ -26,6 +28,7 @@ Single Node.js process with skill-based channel system. Channels (Telegram, Gmai
 | `src/task-scheduler.ts` | Runs scheduled tasks |
 | `src/db.ts` | SQLite operations |
 | `src/todo.ts` | Todo/task CRUD (projects, items, reminders) |
+| `src/image.ts` | Image processing and vision (downloads, resizes, stores in group dir) |
 | `groups/{name}/CLAUDE.md` | Per-group memory (isolated) |
 | `container/skills/agent-browser.md` | Browser automation tool (available to all agents via Bash) |
 

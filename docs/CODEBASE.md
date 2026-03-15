@@ -117,8 +117,10 @@ startIpcWatcher()  [ipc.ts] — polls data/ipc/ every IPC_POLL_INTERVAL (1s)
   │
   ├─ messages/ file:
   │    { type: 'message', chatJid, text }
+  │    { type: 'message', chatJid, text, sender }  [for agent teams]
   │    { type: 'message_with_buttons', chatJid, text, buttons }
-  │    → channel.sendMessage() or channel.sendMessageWithButtons()
+  │    → if sender + Telegram + pool available: sendPoolMessage()
+  │    → else: channel.sendMessage() or channel.sendMessageWithButtons()
   │
   └─ tasks/ file (processTaskIpc()):
        schedule_task → db.createTask()
@@ -223,8 +225,15 @@ Runs as HTTP server on `PROXY_BIND_HOST:3001` (docker0 bridge address on Linux/W
 ### `src/channels/telegram.ts` — Telegram Channel
 - Uses `grammy` library. Patches `dns.lookup` globally to force IPv4 (WSL/IPv6 fix).
 - Registered group JID format: `tg:{chatId}`
+- **Bot pool for agent teams** (optional):
+  - `initBotPool(tokens)` — initialize send-only Api instances (no polling)
+  - `sendPoolMessage()` — route to pool bots with stable sender identity (round-robin assignment, sticky per sender/group)
+  - Pool bots renamed via `setMyName()` to display agent team member names
+  - Falls back to main bot if pool unavailable
+- **Photo handling**: downloads and processes images via `processImage()` utility with vision support (stored in group dir)
 - Handles voice messages: pipes OGG to `scripts/whisper_transcribe.py`
 - Handles inline keyboard buttons: writes IPC file `{ type: 'message_with_buttons', ... }`
+- IPC messages with `sender` field routed to pool (if available); otherwise fall back to main bot
 - Message length limit: 4096 chars (auto-splits)
 
 ### `src/channels/gmail.ts` — Gmail Channel
@@ -259,11 +268,18 @@ The only file that persists state between restarts. Contains all messages, group
 
 | Location | Purpose |
 |----------|---------|
-| `.env` | Host credentials: `CLAUDE_CODE_OAUTH_TOKEN`, `DISCORD_BOT_TOKEN`, `TELEGRAM_BOT_TOKEN`, `ASSISTANT_NAME` |
+| `.env` | Host credentials: `CLAUDE_CODE_OAUTH_TOKEN`, `DISCORD_BOT_TOKEN`, `TELEGRAM_BOT_TOKEN`, `ASSISTANT_NAME`, `TELEGRAM_BOT_POOL` (optional) |
 | `data/env/env` | Container env file — must be kept in sync with `.env` via `cp .env data/env/env` |
 | `~/.gmail-mcp/` | Gmail OAuth keys and tokens |
 | `~/.config/nanoclaw/sender-allowlist.json` | Optional sender filtering config |
 | `~/.config/nanoclaw/mount-allowlist.json` | Approved filesystem paths for container mounts |
+
+**Bot pool configuration:**
+- `TELEGRAM_BOT_POOL` — comma-separated list of bot tokens for agent team messaging
+  - Each token creates a send-only Api instance (no polling)
+  - Tokens are assigned round-robin to team members on first message, then sticky per sender/group
+  - If empty, agent team messages fall back to main bot
+  - Example: `TELEGRAM_BOT_POOL=123:ABCdef...,456:XYZabc...`
 
 ---
 

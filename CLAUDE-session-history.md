@@ -4,6 +4,102 @@ Detailed technical record of changes, decisions, and testing across development 
 
 ---
 
+## Session 2026-03-15b - Telegram Bot Pool & Agent Team Support
+
+**Duration**: Moderate session (~3-4 hours estimated)
+**Effort**: Medium (feature enhancement + documentation updates)
+**Objective**: Implement bot pool for agent teams on Telegram, enable multi-agent conversations with distinct identities, enhance image handling with vision support.
+
+### Changes Made
+
+#### Enhanced Telegram Channel
+- **`src/channels/telegram.ts`** (144 lines added)
+  - `initBotPool(tokens: string[])` — Initialize send-only Api instances for agent team messaging
+  - `sendPoolMessage()` — Route messages through assigned pool bots with stable sender identity
+  - Pool bot assignment: round-robin on first use, then sticky per sender within group
+  - Pool bot renaming via `setMyName()` for visual team agent identification
+  - Image handling: download and process photos from Telegram with `processImage()` utility
+  - Photo handler enhanced to extract caption, download largest size, process via vision system
+
+#### Configuration & Runtime
+- **`src/config.ts`** (+7 lines)
+  - New env var: `TELEGRAM_BOT_POOL` — comma-separated list of bot tokens for team agents
+  - Configuration parsing: splits, trims, filters empty strings
+
+- **`src/index.ts`** (+13 lines)
+  - Import pool functions from telegram channel
+  - Initialize bot pool on startup if TELEGRAM_BOT_POOL configured
+  - Wire `sendPoolMessage` into IPC dependencies alongside `sendMessage`
+  - Fallback to main channel if pool unavailable
+
+#### IPC Message Routing
+- **`src/ipc.ts`** (+21 lines)
+  - Extended `IpcDeps` interface with optional `sendPoolMessage` callback
+  - Message routing logic: check for `sender` field in IPC messages
+  - Route to pool if sender present AND message target is Telegram AND pool available
+  - Otherwise fall back to standard `sendMessage`
+
+#### Agent Documentation Update
+- **`groups/global/CLAUDE.md`** (+35 lines)
+  - Section: "Agent Teams" with critical guidelines
+  - Team member creation instructions with exact naming requirement
+  - Communication pattern: use `mcp__nanoclaw__send_message` with sender parameter
+  - Message formatting rules: single asterisks (not double), underscores, bullets, backticks
+  - Lead agent coordination best practices
+  - Button layout patterns for interactive workflows
+
+#### Test Fixture Updates
+- **`src/channels/whatsapp.test.ts`** (format consistency)
+- **`src/image.test.ts`** (test refinements for vision flow)
+- **`src/remote-control.test.ts`** (test format alignment)
+
+### Technical Decisions
+
+1. **Send-Only Api Instances**: Pool bots don't poll for messages; they only send. This reduces resource overhead for multi-agent teams and avoids duplicate message handling. Main bot (from registry) continues to poll for inbound messages.
+
+2. **Round-Robin Pool Assignment**: First message from a new sender in a group gets next available bot; subsequent messages from that sender always use the same bot. This ensures consistent identity per team member per group, important for message threading and user perception.
+
+3. **Fallback Pattern**: If no pool configured or pool unavailable, gracefully fall back to main channel's `sendMessage`. This allows feature to be optional without breaking existing functionality.
+
+4. **Image Vision Integration**: Photos downloaded and processed before storing as message content. Result includes vision analysis if available; falls back to `[Photo]` with caption if processing fails. Error handling is non-blocking (logs warn, continues).
+
+5. **IPC Message Routing**: Pool dispatch decision happens in IPC watcher, not at channel level. This keeps routing logic centralized and allows IPC watcher to make authorization decisions consistently with other message types.
+
+### Testing Conducted
+
+- **Code formatting**: All modified files passed prettier pre-commit hook
+- **Config parsing**: TELEGRAM_BOT_POOL env var correctly splits and filters
+- **Type safety**: Updated IpcDeps interface and callsites without breaking existing code
+- **Backwards compatibility**: No breaking changes; all new features are opt-in
+- **Import validation**: New imports (Api, processImage, GROUPS_DIR) all resolve correctly
+- **Test fixtures**: Updated test files maintain expected format and type safety
+
+### Issues Encountered & Resolution
+
+- None during this session; feature integrated cleanly with no breaking changes.
+
+### Impact Assessment
+
+- **For Users/Developers**:
+  - Agent teams now have independent Telegram identities per team member
+  - Team conversations appear as separate bot messages rather than unified agent output
+  - Better UX for complex multi-agent workflows (e.g., team of researchers, debate scenarios)
+
+- **For Operations**:
+  - Bot pool is opt-in via TELEGRAM_BOT_POOL env var
+  - No impact on existing single-bot deployments
+  - Pool initialization happens once at startup; negligible performance overhead
+
+- **Backwards Compatibility**: Complete. Existing code paths unchanged; new feature layered on top.
+
+### Outstanding Items
+
+- Agent team feature not yet tested in live Telegram environment (pending bot pool token provisioning)
+- Image vision processing integration awaiting container configuration (MCP setup)
+- Consider adding metrics/logging for pool bot assignment distribution across time
+
+---
+
 ## Session 2026-03-15 - Task Management System & Telegram Enhancements
 
 **Duration**: Extended session (~8-10 hours estimated)
