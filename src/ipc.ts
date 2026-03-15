@@ -23,6 +23,12 @@ import { RegisteredGroup } from './types.js';
 
 export interface IpcDeps {
   sendMessage: (jid: string, text: string) => Promise<void>;
+  sendPoolMessage?: (
+    jid: string,
+    text: string,
+    sender: string,
+    groupFolder: string,
+  ) => Promise<void>;
   sendMessageWithButtons?: (
     jid: string,
     text: string,
@@ -96,7 +102,20 @@ export function startIpcWatcher(deps: IpcDeps): void {
                   isMain ||
                   (targetGroup && targetGroup.folder === sourceGroup)
                 ) {
-                  await deps.sendMessage(data.chatJid, data.text);
+                  if (
+                    data.sender &&
+                    data.chatJid.startsWith('tg:') &&
+                    deps.sendPoolMessage
+                  ) {
+                    await deps.sendPoolMessage(
+                      data.chatJid,
+                      data.text,
+                      data.sender,
+                      sourceGroup,
+                    );
+                  } else {
+                    await deps.sendMessage(data.chatJid, data.text);
+                  }
                   logger.info(
                     { chatJid: data.chatJid, sourceGroup },
                     'IPC message sent',

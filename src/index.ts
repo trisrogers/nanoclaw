@@ -6,6 +6,7 @@ import {
   CREDENTIAL_PROXY_PORT,
   IDLE_TIMEOUT,
   POLL_INTERVAL,
+  TELEGRAM_BOT_POOL,
   TIMEZONE,
   TRIGGER_PATTERN,
 } from './config.js';
@@ -15,6 +16,7 @@ import {
   getChannelFactory,
   getRegisteredChannelNames,
 } from './channels/registry.js';
+import { initBotPool, sendPoolMessage } from './channels/telegram.js';
 import {
   ContainerOutput,
   runContainerAgent,
@@ -627,6 +629,11 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // Initialize Telegram bot pool for agent teams (if configured)
+  if (TELEGRAM_BOT_POOL.length > 0) {
+    await initBotPool(TELEGRAM_BOT_POOL);
+  }
+
   // Start subsystems (independently of connection handler)
   startSchedulerLoop({
     registeredGroups: () => registeredGroups,
@@ -650,6 +657,12 @@ async function main(): Promise<void> {
       if (!channel) throw new Error(`No channel for JID: ${jid}`);
       return channel.sendMessage(jid, text);
     },
+    sendPoolMessage: (jid, text, sender, groupFolder) =>
+      sendPoolMessage(jid, text, sender, groupFolder, (j, t) => {
+        const channel = findChannel(channels, j);
+        if (!channel) throw new Error(`No channel for JID: ${j}`);
+        return channel.sendMessage(j, t);
+      }),
     sendMessageWithButtons: (jid, text, buttons) => {
       const channel = findChannel(channels, jid);
       if (!channel) throw new Error(`No channel for JID: ${jid}`);

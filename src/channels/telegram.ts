@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { spawnSync } from 'child_process';
 
-import { Bot, InlineKeyboard } from 'grammy';
+import { Api, Bot, InlineKeyboard } from 'grammy';
 
 // node-fetch (used by grammy) resolves hostnames via dns.lookup, which may
 // prefer IPv6. In environments where IPv6 is unreachable (e.g. WSL), this
@@ -19,7 +19,8 @@ const _origLookup: any = dns.lookup;
   }
 };
 
-import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../config.js';
+import { ASSISTANT_NAME, GROUPS_DIR, TRIGGER_PATTERN } from '../config.js';
+import { processImage } from '../image.js';
 import { readEnvFile } from '../env.js';
 import { logger } from '../logger.js';
 import { registerChannel, ChannelOpts } from './registry.js';
@@ -35,6 +36,92 @@ export interface TelegramChannelOpts {
   onChatMetadata: OnChatMetadata;
   registeredGroups: () => Record<string, RegisteredGroup>;
   onResetSession?: (chatJid: string) => void;
+}
+
+// Bot pool for agent teams: send-only Api instances (no polling)
+const poolApis: Api[] = [];
+// Maps "{groupFolder}:{senderName}" → pool Api index for stable assignment
+const senderBotMap = new Map<string, number>();
+let nextPoolIndex = 0;
+
+/**
+ * Initialize send-only Api instances for the bot pool.
+ */
+export async function initBotPool(tokens: string[]): Promise<void> {
+  for (const token of tokens) {
+    try {
+      const api = new Api(token);
+      const me = await api.getMe();
+      poolApis.push(api);
+      logger.info(
+        { username: me.username, id: me.id, poolSize: poolApis.length },
+        'Pool bot initialized',
+      );
+    } catch (err) {
+      logger.error({ err }, 'Failed to initialize pool bot');
+    }
+  }
+  if (poolApis.length > 0) {
+    logger.info({ count: poolApis.length }, 'Telegram bot pool ready');
+  }
+}
+
+/**
+ * Send a message via a pool bot assigned to the given sender name.
+ * Assigns bots round-robin on first use; subsequent messages from the
+ * same sender in the same group always use the same bot.
+ */
+export async function sendPoolMessage(
+  chatId: string,
+  text: string,
+  sender: string,
+  groupFolder: string,
+  fallback: (jid: string, text: string) => Promise<void>,
+): Promise<void> {
+  if (poolApis.length === 0) {
+    await fallback(chatId, text);
+    return;
+  }
+
+  const key = `${groupFolder}:${sender}`;
+  let idx = senderBotMap.get(key);
+  if (idx === undefined) {
+    idx = nextPoolIndex % poolApis.length;
+    nextPoolIndex++;
+    senderBotMap.set(key, idx);
+    try {
+      await poolApis[idx].setMyName(sender);
+      await new Promise((r) => setTimeout(r, 2000));
+      logger.info(
+        { sender, groupFolder, poolIndex: idx },
+        'Assigned and renamed pool bot',
+      );
+    } catch (err) {
+      logger.warn(
+        { sender, err },
+        'Failed to rename pool bot (sending anyway)',
+      );
+    }
+  }
+
+  const api = poolApis[idx];
+  try {
+    const numericId = chatId.replace(/^tg:/, '');
+    const MAX_LENGTH = 4096;
+    if (text.length <= MAX_LENGTH) {
+      await api.sendMessage(numericId, text);
+    } else {
+      for (let i = 0; i < text.length; i += MAX_LENGTH) {
+        await api.sendMessage(numericId, text.slice(i, i + MAX_LENGTH));
+      }
+    }
+    logger.info(
+      { chatId, sender, poolIndex: idx, length: text.length },
+      'Pool message sent',
+    );
+  } catch (err) {
+    logger.error({ chatId, sender, err }, 'Failed to send pool message');
+  }
 }
 
 export class TelegramChannel implements Channel {
@@ -203,7 +290,58 @@ export class TelegramChannel implements Channel {
       });
     };
 
-    this.bot.on('message:photo', (ctx) => storeNonText(ctx, '[Photo]'));
+    this.bot.on('message:photo', async (ctx) => {
+      const chatJid = `tg:${ctx.chat.id}`;
+      const group = this.opts.registeredGroups()[chatJid];
+      if (!group) return;
+
+      const timestamp = new Date(ctx.message.date * 1000).toISOString();
+      const senderName =
+        ctx.from?.first_name ||
+        ctx.from?.username ||
+        ctx.from?.id?.toString() ||
+        'Unknown';
+      const caption = ctx.message.caption || '';
+      const isGroup =
+        ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
+      this.opts.onChatMetadata(
+        chatJid,
+        timestamp,
+        undefined,
+        'telegram',
+        isGroup,
+      );
+
+      // Download and process the image (largest size available)
+      let content = caption ? `[Photo] ${caption}` : '[Photo]';
+      try {
+        const photos = ctx.message.photo;
+        const largest = photos[photos.length - 1];
+        const file = await this.bot!.api.getFile(largest.file_id);
+        if (file.file_path) {
+          const downloadUrl = `https://api.telegram.org/file/bot${this.botToken}/${file.file_path}`;
+          const response = await fetch(downloadUrl);
+          if (response.ok) {
+            const buffer = Buffer.from(await response.arrayBuffer());
+            const groupDir = path.join(GROUPS_DIR, group.folder);
+            const result = await processImage(buffer, groupDir, caption);
+            if (result) content = result.content;
+          }
+        }
+      } catch (err) {
+        logger.warn({ err, chatJid }, 'Image - download failed');
+      }
+
+      this.opts.onMessage(chatJid, {
+        id: ctx.message.message_id.toString(),
+        chat_jid: chatJid,
+        sender: ctx.from?.id?.toString() || '',
+        sender_name: senderName,
+        content,
+        timestamp,
+        is_from_me: false,
+      });
+    });
     this.bot.on('message:video', (ctx) => storeNonText(ctx, '[Video]'));
     this.bot.on('message:voice', async (ctx) => {
       const chatJid = `tg:${ctx.chat.id}`;
