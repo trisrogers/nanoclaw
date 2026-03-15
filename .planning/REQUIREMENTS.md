@@ -10,11 +10,11 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Infrastructure
 
 - [x] **INFRA-01**: Dashboard HTTP server starts with NanoClaw process on a configurable port (default 3030)
-- [ ] **INFRA-02**: Dashboard serves React SPA static files from `dashboard/dist/` in production
+- [x] **INFRA-02**: Dashboard serves React SPA static files from `dashboard/dist/` in production
 - [x] **INFRA-03**: Dashboard HTTP server is registered in the existing NanoClaw shutdown handler (SIGTERM/SIGINT)
 - [x] **INFRA-04**: Dashboard WebSocket server shares the same HTTP server port as REST endpoints
 - [x] **INFRA-05**: Dashboard is accessible on LAN (binds to 0.0.0.0 or configurable bind address), no authentication required
-- [ ] **INFRA-06**: Vite dev server proxies API and WebSocket requests to the backend (development workflow)
+- [x] **INFRA-06**: Vite dev server proxies API and WebSocket requests to the backend (development workflow)
 
 ### Overview
 

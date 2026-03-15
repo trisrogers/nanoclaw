@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 ## Current Position
 
 Phase: 1 of 3 (Foundation)
-Plan: 1 of 5 in current phase
+Plan: 2 of 5 in current phase
 Status: In progress
-Last activity: 2026-03-15 — Completed 01-01 (HTTP + WebSocket server)
+Last activity: 2026-03-16 — Completed 01-02 (React/Vite SPA dashboard + /api/groups)
 
-Progress: [██░░░░░░░░] 20%
+Progress: [████░░░░░░] 40%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: ~45 min
-- Total execution time: ~45 min
+- Total plans completed: 2
+- Average duration: ~52 min
+- Total execution time: ~105 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-foundation | 1 | ~45 min | ~45 min |
+| 01-foundation | 2 | ~105 min | ~52 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (~45 min)
-- Trend: -
+- Last 5 plans: 01-01 (~45 min), 01-02 (~60 min)
+- Trend: stable
 
 *Updated after each plan completion*
 
@@ -50,6 +50,10 @@ Recent decisions affecting current work:
 - [01-01] dashboardServer.close() placed as FIRST call in shutdown() — prevents 90-second hang on systemctl restart
 - [01-01] Server binds to 0.0.0.0 by default (DASHBOARD_BIND env var) — required for WSL host access
 - [01-01] Static dist path resolved with process.cwd() not __dirname — required under systemd
+- [01-02] API router mounted before express.static() — prevents static handler intercepting /api/* routes
+- [01-02] WAL mode enabled on SQLite DB init — allows concurrent HTTP reads alongside better-sqlite3 writes
+- [01-02] LIMIT 100 on all DB query endpoints — better-sqlite3 is synchronous and blocks the event loop
+- [01-02] Vite dev proxy on port 5173 with ws:true for /ws — eliminates CORS and confirms WebSocket proxy works
 
 ### Pending Todos
 
@@ -63,6 +67,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15
-Stopped at: Completed 01-01-PLAN.md (HTTP + WebSocket server, human-verified clean restart)
+Last session: 2026-03-16
+Stopped at: Completed 01-02-PLAN.md (React/Vite SPA dashboard + /api/groups, human-verified end-to-end)
 Resume file: None

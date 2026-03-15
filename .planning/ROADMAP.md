@@ -12,7 +12,7 @@ Three phases build the dashboard from nothing to a fully functional operator con
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation** - Express HTTP server + React/Vite SPA scaffold wired into the NanoClaw process
+- [x] **Phase 1: Foundation** - Express HTTP server + React/Vite SPA scaffold wired into the NanoClaw process (completed 2026-03-15)
 - [ ] **Phase 2: Operational Panels** - Chat, container status, overview, groups/channels, and logs panels
 - [ ] **Phase 3: Data Panels** - Message history, CLAUDE.md editor, scheduled tasks, todos, and Claude usage panels
 
@@ -78,6 +78,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 1/2 | In Progress|  |
+| 1. Foundation | 2/2 | Complete   | 2026-03-15 |
 | 2. Operational Panels | 0/4 | Not started | - |
 | 3. Data Panels | 0/5 | Not started | - |
