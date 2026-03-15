@@ -6,9 +6,10 @@ import { WebSocketServer } from 'ws';
 
 import { logger } from '../logger.js';
 import { DashboardDeps } from './types.js';
+import { channelsRouter } from './routes/channels.js';
 import { groupsRouter } from './routes/groups.js';
 import { logsRouter } from './routes/logs.js';
-// TODO: mount statsRouter and channelsRouter after they are created in Task 2
+import { statsRouter } from './routes/stats.js';
 
 /** Module-scoped deps reference — used by WebSocket chat handler (02-04) */
 let dashboardDeps: DashboardDeps | null = null;
@@ -47,6 +48,8 @@ export function startDashboardServer(
     res.json({ ok: true, ts: new Date().toISOString() });
   });
 
+  app.use('/api', statsRouter(deps));
+  app.use('/api', channelsRouter(deps));
   app.use('/api', groupsRouter);
   app.use('/api', logsRouter());
 
