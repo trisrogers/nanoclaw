@@ -16,7 +16,9 @@
     "setup": "tsx setup/index.ts",
     "auth": "tsx src/whatsapp-auth.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:dashboard": "cd dashboard && npm run build",
+    "build:all": "npm run build:dashboard && npm run build"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc.9",

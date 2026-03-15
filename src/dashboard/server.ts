@@ -5,6 +5,7 @@ import express from 'express';
 import { WebSocketServer } from 'ws';
 
 import { logger } from '../logger.js';
+import { groupsRouter } from './routes/groups.js';
 
 /**
  * Create and start the dashboard HTTP + WebSocket server.
@@ -32,6 +33,8 @@ export function startDashboardServer(
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, ts: new Date().toISOString() });
   });
+
+  app.use('/api', groupsRouter);
 
   // ── Static files (built dashboard) ─────────────────────────────────────────
   const distPath = path.resolve(process.cwd(), 'dashboard', 'dist');
