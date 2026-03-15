@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-03-15T21:59:23.702Z"
+stopped_at: Completed 02-04-PLAN.md (awaiting checkpoint Task 3 human-verify)
+last_updated: "2026-03-15T22:04:26.248Z"
 last_activity: 2026-03-16 — Completed 01-02 (React/Vite SPA dashboard + /api/groups)
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
   percent: 40
 ---
 
@@ -53,6 +53,7 @@ Progress: [████░░░░░░] 40%
 | Phase 02-operational-panels P03 | 8 | 2 tasks | 6 files |
 | Phase 02-operational-panels P01 | 10 | 3 tasks | 12 files |
 | Phase 02-operational-panels P02 | 3 | 2 tasks | 8 files |
+| Phase 02-operational-panels P04 | 7 | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,8 @@ Recent decisions affecting current work:
 - [Phase 02-01]: dashboardDeps stored as module-scoped let in server.ts for future WebSocket chat handler (02-04) access
 - [Phase 02-02]: Restart signals closeStdin only — next message naturally spins up fresh container without extra restart logic
 - [Phase 02-02]: Inline confirm via ActionButton transform — no modal, Confirm?/Cancel pair replaces button text
+- [Phase 02-operational-panels]: web:dashboard registered in-memory only — not persisted to DB to keep Groups panel clean
+- [Phase 02-operational-panels]: DashboardDeps carries storeMessage + enqueueMessageCheck as function refs to avoid circular import from chat-handler.ts to index.ts
 
 ### Pending Todos
 
@@ -93,6 +96,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T21:59:18.789Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-03-15T22:04:26.246Z
+Stopped at: Completed 02-04-PLAN.md (awaiting checkpoint Task 3 human-verify)
 Resume file: None

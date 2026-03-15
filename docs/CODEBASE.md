@@ -27,6 +27,7 @@ nanoclaw/
 │   ├── dashboard/
 │   │   ├── server.ts       # Dashboard HTTP + WebSocket server (startDashboardServer(port, host, deps))
 │   │   ├── types.ts        # DashboardDeps + ContainerSnapshot interfaces
+│   │   ├── chat-handler.ts # createChatHandler() — WS messages → storeMessage + enqueueMessageCheck
 │   │   └── routes/
 │   │       ├── groups.ts      # GET /api/groups — registered groups from DB (LIMIT 100)
 │   │       ├── logs.ts        # GET /api/logs — last 200 parsed pino-pretty log entries
@@ -47,6 +48,7 @@ nanoclaw/
 │       ├── telegram.ts     # Telegram bot (grammy)
 │       ├── gmail.ts        # Gmail polling (Google APIs + OAuth2)
 │       ├── discord.ts      # Discord bot (disabled — output goes to Telegram)
+│       ├── web-dashboard.ts# WebDashboardChannel — routes agent output to browser WS clients
 │       └── whatsapp.ts     # WhatsApp (not installed)
 ├── groups/
 │   ├── global/CLAUDE.md    # Agent identity/instructions (all agents read this)
@@ -161,9 +163,22 @@ runTask(task)  [task-scheduler.ts]
 Provides the web dashboard entry point.
 - `startDashboardServer(port, bindHost, deps)`: creates Express app + http.Server, attaches WebSocket server on `/ws/chat`
 - Route order: `GET /api/health` → statsRouter → channelsRouter → containersRouter → groupsRouter → logsRouter → `express.static(dashboard/dist/)` → SPA catch-all
-- `DashboardDeps` (from `src/dashboard/types.ts`) includes: `getChannels`, `getQueueSnapshot`, `getActiveContainerCount`, `getIpcQueueDepth`, `getTodosDueToday`, `getLastError`, `getRegisteredGroups`, `clearGroupSession`, `restartGroupContainer`
+- `DashboardDeps` (from `src/dashboard/types.ts`) includes: `getChannels`, `getQueueSnapshot`, `getActiveContainerCount`, `getIpcQueueDepth`, `getTodosDueToday`, `getLastError`, `getRegisteredGroups`, `clearGroupSession`, `restartGroupContainer`, `webDashboardChannel`, `storeMessage`, `enqueueMessageCheck`
 - Returns `http.Server` — caller owns the lifecycle (no SIGTERM handler inside)
 - Port default 3030 (via `DASHBOARD_PORT` env var), binds to `0.0.0.0` by default
+
+### `src/dashboard/chat-handler.ts` — WebSocket Chat Handler
+- `createChatHandler(deps)`: factory that returns a WS connection handler
+- On message: parses `{ text }` JSON, calls `storeMessage()` with `chat_jid: 'web:dashboard'`, then `enqueueMessageCheck('web:dashboard')`
+- Registers/deregisters each WS connection with `WebDashboardChannel`
+
+### `src/channels/web-dashboard.ts` — WebDashboardChannel
+- Implements the `Channel` interface; `ownsJid('web:dashboard')` returns true
+- Maintains a `Set<WebSocket>` of connected browser clients
+- `sendMessage()` broadcasts `{ type: 'message', text }` frames to all OPEN clients
+- `setTyping()` broadcasts `{ type: 'typing', value }` frames
+- Does NOT self-register — created directly in `index.ts` and pushed to `channels[]` in-memory
+- `web:dashboard` group registered in-memory in `main()` BEFORE `recoverPendingMessages()` — NOT persisted to DB
 
 ### `src/dashboard/routes/groups.ts` — Groups API
 - `GET /api/groups`: queries `registered_groups` table, returns JSON array with LIMIT 100
@@ -183,9 +198,10 @@ Provides the web dashboard entry point.
 
 ### `dashboard/` — React/Vite SPA
 - Vite 8 + React 19 + TypeScript + Tailwind CSS v4 (via `@tailwindcss/vite` plugin)
-- `dashboard/src/App.tsx`: sidebar layout with 10 nav items; Overview, Containers, Groups, Logs panels implemented
+- `dashboard/src/App.tsx`: sidebar layout with 10 nav items; Overview, Chat, Containers, Groups, Logs panels implemented
 - `dashboard/src/components/LogsPanel.tsx`: log viewer — 5s auto-refresh, client-side level filter, smart auto-scroll
 - `dashboard/src/components/ContainersPanel.tsx`: container status table — colour-coded status badges, inline confirm actions (Clear Session / Restart), 3s toast feedback, polls every 10s
+- `dashboard/src/components/ChatPanel.tsx`: messenger-style chat UI — bubble layout (user right/blue, Deltron left/gray), three-dot typing indicator, Enter to send, Shift+Enter for newline, auto-scroll; connects to `/ws/chat` WebSocket
 - `dashboard/vite.config.ts`: proxies `/api` and `/ws` to `http://localhost:3030` in dev mode
 - Build output: `dashboard/dist/` (served by Express `express.static`)
 - Build command: `npm run build:dashboard` (from root) or `npm run build` (from dashboard/)
