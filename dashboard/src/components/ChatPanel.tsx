@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 
 import { Send } from 'lucide-react';
 
+function genId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
 interface ChatMessage {
   from: 'user' | 'deltron';
   text: string;
@@ -43,7 +48,7 @@ export default function ChatPanel() {
       if (msg.type === 'message') {
         setMessages((prev) => [
           ...prev,
-          { from: 'deltron', text: msg.text ?? '', id: crypto.randomUUID() },
+          { from: 'deltron', text: msg.text ?? '', id: genId() },
         ]);
         setIsTyping(false);
       } else if (msg.type === 'typing') {
@@ -69,7 +74,7 @@ export default function ChatPanel() {
     wsRef.current.send(JSON.stringify({ text }));
     setMessages((prev) => [
       ...prev,
-      { from: 'user', text, id: crypto.randomUUID() },
+      { from: 'user', text, id: genId() },
     ]);
     setInput('');
   };
