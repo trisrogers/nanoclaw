@@ -1,27 +1,26 @@
 import { useEffect, useState } from 'react';
 
-interface ModelUsage {
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadInputTokens: number;
-  cacheCreationInputTokens: number;
-  webSearchRequests: number;
+interface FiveHour {
+  utilization: number;
+  resets_at: string;
 }
 
-interface DailyActivity {
-  date: string;
-  messageCount: number;
-  sessionCount: number;
-  toolCallCount: number;
+interface SevenDay {
+  utilization: number;
+  resets_at: string;
+}
+
+interface ExtraUsage {
+  is_enabled: boolean;
+  monthly_limit: number;
+  used_credits: number;
+  utilization: number;
 }
 
 interface UsageData {
-  lastComputedDate: string | null;
-  modelUsage: Record<string, ModelUsage>;
-  recentActivity: DailyActivity[];
-  totalSessions: number;
-  totalMessages: number;
-  firstSessionDate: string | null;
+  five_hour: FiveHour | null;
+  seven_day: SevenDay | null;
+  extra_usage: ExtraUsage | null;
 }
 
 interface UsageResponse {
@@ -30,17 +29,38 @@ interface UsageResponse {
   fetchedAt: number;
 }
 
-function fmt(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
-  return String(n);
+function ProgressBar({ pct }: { pct: number }) {
+  const clamped = Math.min(100, Math.max(0, pct));
+  const color =
+    clamped >= 90
+      ? 'bg-red-500'
+      : clamped >= 60
+        ? 'bg-yellow-500'
+        : 'bg-green-500';
+  return (
+    <div className="w-full bg-gray-800 rounded-full h-1.5 mt-1.5">
+      <div
+        className={`${color} h-1.5 rounded-full transition-all`}
+        style={{ width: `${clamped}%` }}
+      />
+    </div>
+  );
 }
 
-function shortModel(model: string): string {
-  return model
-    .replace('claude-', '')
-    .replace(/-\d{8}$/, '')
-    .replace(/-20\d{6}$/, '');
+function formatReset(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZoneName: 'short',
+    });
+  } catch {
+    return iso;
+  }
 }
 
 export default function UsagePanel() {
@@ -68,8 +88,7 @@ export default function UsagePanel() {
   function secondsAgo(ms: number): string {
     const diff = Math.floor((Date.now() - ms) / 1000);
     if (diff < 60) return `${diff}s ago`;
-    const mins = Math.floor(diff / 60);
-    return `${mins}m ago`;
+    return `${Math.floor(diff / 60)}m ago`;
   }
 
   const data = response?.data;
@@ -100,112 +119,65 @@ export default function UsagePanel() {
 
       {response?.error && (
         <div className="bg-red-900/40 border border-red-700 text-red-300 text-sm rounded px-4 py-3">
-          <p className="font-medium mb-1">Error reading usage stats</p>
+          <p className="font-medium mb-1">Error fetching usage</p>
           <p className="font-mono text-xs">{response.error}</p>
         </div>
       )}
 
       {data && (
-        <>
-          {/* Totals */}
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { label: 'Sessions', value: data.totalSessions.toLocaleString() },
-              { label: 'Messages', value: data.totalMessages.toLocaleString() },
-              {
-                label: 'Since',
-                value: data.firstSessionDate
-                  ? new Date(data.firstSessionDate).toLocaleDateString(
-                      undefined,
-                      { month: 'short', year: 'numeric' },
-                    )
-                  : '—',
-              },
-            ].map(({ label, value }) => (
-              <div key={label} className="bg-gray-900 rounded-lg px-4 py-3">
-                <p className="text-gray-500 text-xs mb-1">{label}</p>
-                <p className="text-gray-100 font-mono text-sm">{value}</p>
+        <div className="space-y-4">
+          {data.five_hour && (
+            <div className="bg-gray-900 rounded-lg px-4 py-3">
+              <div className="flex justify-between items-baseline">
+                <span className="text-gray-300 text-sm font-medium">
+                  Current session
+                </span>
+                <span className="text-gray-100 font-mono text-sm">
+                  {Math.round(data.five_hour.utilization)}% used
+                </span>
               </div>
-            ))}
-          </div>
-
-          {/* Model token breakdown */}
-          {Object.keys(data.modelUsage).length > 0 && (
-            <div>
-              <p className="text-gray-500 text-xs mb-2">
-                Token usage by model
-                {data.lastComputedDate && (
-                  <span className="ml-2 text-gray-600">
-                    (computed {data.lastComputedDate})
-                  </span>
-                )}
+              <ProgressBar pct={data.five_hour.utilization} />
+              <p className="text-gray-500 text-xs mt-1.5">
+                Resets {formatReset(data.five_hour.resets_at)}
               </p>
-              <div className="bg-gray-900 rounded-lg divide-y divide-gray-800 overflow-x-auto">
-                <div className="grid grid-cols-5 px-4 py-2 text-xs text-gray-500">
-                  <span>Model</span>
-                  <span className="text-right">Input</span>
-                  <span className="text-right">Output</span>
-                  <span className="text-right">Cache read</span>
-                  <span className="text-right">Cache write</span>
-                </div>
-                {Object.entries(data.modelUsage).map(([model, usage]) => (
-                  <div
-                    key={model}
-                    className="grid grid-cols-5 px-4 py-2.5 text-xs"
-                  >
-                    <span className="text-gray-300 font-mono truncate pr-2">
-                      {shortModel(model)}
-                    </span>
-                    <span className="text-gray-100 font-mono text-right">
-                      {fmt(usage.inputTokens)}
-                    </span>
-                    <span className="text-gray-100 font-mono text-right">
-                      {fmt(usage.outputTokens)}
-                    </span>
-                    <span className="text-gray-400 font-mono text-right">
-                      {fmt(usage.cacheReadInputTokens)}
-                    </span>
-                    <span className="text-gray-400 font-mono text-right">
-                      {fmt(usage.cacheCreationInputTokens)}
-                    </span>
-                  </div>
-                ))}
-              </div>
             </div>
           )}
 
-          {/* Recent activity */}
-          {data.recentActivity.length > 0 && (
-            <div>
-              <p className="text-gray-500 text-xs mb-2">Recent activity</p>
-              <div className="bg-gray-900 rounded-lg divide-y divide-gray-800">
-                <div className="grid grid-cols-4 px-4 py-2 text-xs text-gray-500">
-                  <span>Date</span>
-                  <span className="text-right">Messages</span>
-                  <span className="text-right">Sessions</span>
-                  <span className="text-right">Tool calls</span>
-                </div>
-                {data.recentActivity.map((day) => (
-                  <div
-                    key={day.date}
-                    className="grid grid-cols-4 px-4 py-2 text-xs"
-                  >
-                    <span className="text-gray-400 font-mono">{day.date}</span>
-                    <span className="text-gray-100 font-mono text-right">
-                      {day.messageCount.toLocaleString()}
-                    </span>
-                    <span className="text-gray-100 font-mono text-right">
-                      {day.sessionCount}
-                    </span>
-                    <span className="text-gray-400 font-mono text-right">
-                      {day.toolCallCount}
-                    </span>
-                  </div>
-                ))}
+          {data.seven_day && (
+            <div className="bg-gray-900 rounded-lg px-4 py-3">
+              <div className="flex justify-between items-baseline">
+                <span className="text-gray-300 text-sm font-medium">
+                  Current week (all models)
+                </span>
+                <span className="text-gray-100 font-mono text-sm">
+                  {Math.round(data.seven_day.utilization)}% used
+                </span>
               </div>
+              <ProgressBar pct={data.seven_day.utilization} />
+              <p className="text-gray-500 text-xs mt-1.5">
+                Resets {formatReset(data.seven_day.resets_at)}
+              </p>
             </div>
           )}
-        </>
+
+          {data.extra_usage?.is_enabled && (
+            <div className="bg-gray-900 rounded-lg px-4 py-3">
+              <div className="flex justify-between items-baseline">
+                <span className="text-gray-300 text-sm font-medium">
+                  Extra usage
+                </span>
+                <span className="text-gray-100 font-mono text-sm">
+                  {Math.round(data.extra_usage.utilization)}% used
+                </span>
+              </div>
+              <ProgressBar pct={data.extra_usage.utilization} />
+              <p className="text-gray-500 text-xs mt-1.5">
+                ${(data.extra_usage.used_credits / 100).toFixed(2)} / $
+                {(data.extra_usage.monthly_limit / 100).toFixed(2)} spent
+              </p>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

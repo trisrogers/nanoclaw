@@ -4,58 +4,59 @@ import path from 'path';
 
 import { Router } from 'express';
 
-interface ModelUsage {
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadInputTokens: number;
-  cacheCreationInputTokens: number;
-  webSearchRequests: number;
-  costUSD: number;
+const CACHE_TTL_MS = 60_000;
+const CREDENTIALS_PATH = path.join(homedir(), '.claude', '.credentials.json');
+const USAGE_API = 'https://api.anthropic.com/api/oauth/usage';
+
+interface FiveHour {
+  utilization: number;
+  resets_at: string;
 }
 
-interface DailyActivity {
-  date: string;
-  messageCount: number;
-  sessionCount: number;
-  toolCallCount: number;
+interface SevenDay {
+  utilization: number;
+  resets_at: string;
 }
 
-interface StatsCache {
-  lastComputedDate?: string;
-  modelUsage?: Record<string, ModelUsage>;
-  dailyActivity?: DailyActivity[];
-  totalSessions?: number;
-  totalMessages?: number;
-  firstSessionDate?: string;
+interface ExtraUsage {
+  is_enabled: boolean;
+  monthly_limit: number;
+  used_credits: number;
+  utilization: number;
 }
 
 export interface UsageData {
-  lastComputedDate: string | null;
-  modelUsage: Record<string, ModelUsage>;
-  recentActivity: DailyActivity[];
-  totalSessions: number;
-  totalMessages: number;
-  firstSessionDate: string | null;
+  five_hour: FiveHour | null;
+  seven_day: SevenDay | null;
+  extra_usage: ExtraUsage | null;
 }
 
-const CACHE_TTL_MS = 60_000;
-const STATS_PATH = path.join(homedir(), '.claude', 'stats-cache.json');
+async function getAccessToken(): Promise<string> {
+  const raw = await readFile(CREDENTIALS_PATH, 'utf8');
+  const creds = JSON.parse(raw);
+  const token = creds?.claudeAiOauth?.accessToken ?? creds?.accessToken ?? null;
+  if (!token) throw new Error('No access token found in credentials');
+  return token;
+}
 
-async function readStatsCache(): Promise<UsageData> {
-  const raw = await readFile(STATS_PATH, 'utf8');
-  const stats: StatsCache = JSON.parse(raw);
-
-  const activity = stats.dailyActivity ?? [];
-  // Return last 14 days of activity, most recent first
-  const recentActivity = [...activity].reverse().slice(0, 14);
-
+async function fetchUsage(): Promise<UsageData> {
+  const token = await getAccessToken();
+  const res = await fetch(USAGE_API, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'anthropic-beta': 'oauth-2025-04-20',
+      Accept: 'application/json',
+    },
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`API ${res.status}: ${body.slice(0, 200)}`);
+  }
+  const data = (await res.json()) as Record<string, unknown>;
   return {
-    lastComputedDate: stats.lastComputedDate ?? null,
-    modelUsage: stats.modelUsage ?? {},
-    recentActivity,
-    totalSessions: stats.totalSessions ?? 0,
-    totalMessages: stats.totalMessages ?? 0,
-    firstSessionDate: stats.firstSessionDate ?? null,
+    five_hour: (data.five_hour as FiveHour) ?? null,
+    seven_day: (data.seven_day as SevenDay) ?? null,
+    extra_usage: (data.extra_usage as ExtraUsage) ?? null,
   };
 }
 
@@ -74,7 +75,7 @@ export function usageRouter(): Router {
       return;
     }
     try {
-      const data = await readStatsCache();
+      const data = await fetchUsage();
       cache = { data, error: null, fetchedAt: now };
     } catch (err) {
       cache = {
