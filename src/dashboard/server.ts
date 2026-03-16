@@ -12,7 +12,9 @@ import { containersRouter } from './routes/containers.js';
 import { groupsRouter } from './routes/groups.js';
 import { logsRouter } from './routes/logs.js';
 import { memoryRouter } from './routes/memory.js';
+import { messagesRouter } from './routes/messages.js';
 import { statsRouter } from './routes/stats.js';
+import { tasksRouter } from './routes/tasks.js';
 import { todosRouter } from './routes/todos.js';
 
 /** Module-scoped deps reference — used by WebSocket chat handler (02-04) */
@@ -58,6 +60,7 @@ export function startDashboardServer(
   app.use('/api', groupsRouter);
   app.use('/api', logsRouter());
   app.use('/api', memoryRouter());
+  app.use('/api', messagesRouter());
   app.use('/api', todosRouter());
 
   // ── Static files (built dashboard) ─────────────────────────────────────────
