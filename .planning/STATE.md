@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-03-16T01:12:27.423Z"
+stopped_at: Completed 03-04 (Todos panel REST route + TodosPanel component)
+last_updated: "2026-03-16T01:12:41.858Z"
 last_activity: 2026-03-16 — Completed 01-02 (React/Vite SPA dashboard + /api/groups)
 progress:
   total_phases: 3
@@ -56,6 +56,7 @@ Progress: [████░░░░░░] 40%
 | Phase 02-operational-panels P04 | 7 | 2 tasks | 13 files |
 | Phase 02-operational-panels P04 | 45 | 3 tasks | 13 files |
 | Phase 03-data-panels P02 | 2 | 2 tasks | 4 files |
+| Phase 03-data-panels P04 | 3 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,7 @@ Recent decisions affecting current work:
 - [Phase 03-data-panels]: global group special-cased in resolveMemoryPath — not in registered_groups DB
 - [Phase 03-data-panels]: file-not-found returns empty string (200) so editor can create CLAUDE.md from scratch
 - [Phase 03-data-panels]: memoryIsDirtyRef exported as module-level mutable ref for Plan 05 App.tsx navigation guard
+- [Phase 03-data-panels]: Return ALL items (all statuses) from /api/todos — client filters to avoid multiple round-trips
 
 ### Pending Todos
 
@@ -103,6 +105,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T01:12:27.421Z
-Stopped at: Completed 03-02-PLAN.md
+Last session: 2026-03-16T01:12:41.856Z
+Stopped at: Completed 03-04 (Todos panel REST route + TodosPanel component)
 Resume file: None
