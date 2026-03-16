@@ -48,9 +48,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### CLAUDE.md Editor
 
-- [ ] **MEM-01**: User can view and edit the global `groups/global/CLAUDE.md` file from the dashboard
-- [ ] **MEM-02**: User can view and edit per-group `groups/{name}/CLAUDE.md` files from the dashboard
-- [ ] **MEM-03**: User is warned if they attempt to navigate away with unsaved changes
+- [x] **MEM-01**: User can view and edit the global `groups/global/CLAUDE.md` file from the dashboard
+- [x] **MEM-02**: User can view and edit per-group `groups/{name}/CLAUDE.md` files from the dashboard
+- [x] **MEM-03**: User is warned if they attempt to navigate away with unsaved changes
 
 ### Scheduled Tasks
 
