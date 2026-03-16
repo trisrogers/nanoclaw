@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-04 (Todos panel REST route + TodosPanel component)
-last_updated: "2026-03-16T01:12:41.858Z"
+stopped_at: Completed 03-01-PLAN.md (Message History Panel)
+last_updated: "2026-03-16T01:14:26.836Z"
 last_activity: 2026-03-16 — Completed 01-02 (React/Vite SPA dashboard + /api/groups)
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 11
-  completed_plans: 8
+  completed_plans: 10
   percent: 40
 ---
 
@@ -57,6 +57,8 @@ Progress: [████░░░░░░] 40%
 | Phase 02-operational-panels P04 | 45 | 3 tasks | 13 files |
 | Phase 03-data-panels P02 | 2 | 2 tasks | 4 files |
 | Phase 03-data-panels P04 | 3 | 2 tasks | 4 files |
+| Phase 03-data-panels P03 | 4 | 2 tasks | 5 files |
+| Phase 03-data-panels P01 | 7 | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -92,6 +94,10 @@ Recent decisions affecting current work:
 - [Phase 03-data-panels]: file-not-found returns empty string (200) so editor can create CLAUDE.md from scratch
 - [Phase 03-data-panels]: memoryIsDirtyRef exported as module-level mutable ref for Plan 05 App.tsx navigation guard
 - [Phase 03-data-panels]: Return ALL items (all statuses) from /api/todos — client filters to avoid multiple round-trips
+- [Phase 03-data-panels]: getTaskRunLogs uses Math.min(limit, 20) hard cap — prevents blocking event loop on large log tables
+- [Phase 03-data-panels]: GET /api/tasks/:id/runs returns empty array for unknown task ID (not 404) — no logs is a valid state
+- [Phase 03-01]: Composite index idx_messages_jid_ts on messages(chat_jid, timestamp DESC) for getMessagesByGroup performance
+- [Phase 03-01]: messagesRouter factory follows logsRouter no-deps pattern — reads DB directly, no DashboardDeps injection
 
 ### Pending Todos
 
@@ -105,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T01:12:41.856Z
-Stopped at: Completed 03-04 (Todos panel REST route + TodosPanel component)
+Last session: 2026-03-16T01:14:26.835Z
+Stopped at: Completed 03-01-PLAN.md (Message History Panel)
 Resume file: None

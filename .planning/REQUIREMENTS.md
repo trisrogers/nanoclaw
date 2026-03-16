@@ -54,13 +54,13 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Scheduled Tasks
 
-- [ ] **TASK-01**: User can view all scheduled tasks with their schedule, last run time, next run time, and status
-- [ ] **TASK-02**: User can view task run history (last 20 runs per task) including output and errors
+- [x] **TASK-01**: User can view all scheduled tasks with their schedule, last run time, next run time, and status
+- [x] **TASK-02**: User can view task run history (last 20 runs per task) including output and errors
 
 ### Todos
 
-- [ ] **TODO-01**: User can view all todo items grouped by project across all groups
-- [ ] **TODO-02**: Todo board shows item status (pending / done), due dates, and assignee
+- [x] **TODO-01**: User can view all todo items grouped by project across all groups
+- [x] **TODO-02**: Todo board shows item status (pending / done), due dates, and assignee
 
 ### Claude Usage
 
