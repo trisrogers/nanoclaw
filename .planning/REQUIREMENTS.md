@@ -64,8 +64,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Claude Usage
 
-- [ ] **USAGE-01**: User can view Claude Code Pro plan usage on demand (session usage, weekly limit, reset time)
-- [ ] **USAGE-02**: Usage data is cached for 60 seconds to avoid hammering the CLI
+- [x] **USAGE-01**: User can view Claude Code Pro plan usage on demand (session usage, weekly limit, reset time)
+- [x] **USAGE-02**: Usage data is cached for 60 seconds to avoid hammering the CLI
 
 ---
 

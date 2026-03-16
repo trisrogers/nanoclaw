@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-01-PLAN.md (Message History Panel)
-last_updated: "2026-03-16T01:14:26.836Z"
+stopped_at: Completed 03-05-PLAN.md (Usage Panel + App.tsx Wiring — Phase 3 complete)
+last_updated: "2026-03-16T09:36:33.540Z"
 last_activity: 2026-03-16 — Completed 01-02 (React/Vite SPA dashboard + /api/groups)
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 11
-  completed_plans: 10
+  completed_plans: 11
   percent: 40
 ---
 
@@ -59,6 +59,7 @@ Progress: [████░░░░░░] 40%
 | Phase 03-data-panels P04 | 3 | 2 tasks | 4 files |
 | Phase 03-data-panels P03 | 4 | 2 tasks | 5 files |
 | Phase 03-data-panels P01 | 7 | 3 tasks | 6 files |
+| Phase 03-data-panels P05 | 30 | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,8 @@ Recent decisions affecting current work:
 - [Phase 03-data-panels]: GET /api/tasks/:id/runs returns empty array for unknown task ID (not 404) — no logs is a valid state
 - [Phase 03-01]: Composite index idx_messages_jid_ts on messages(chat_jid, timestamp DESC) for getMessagesByGroup performance
 - [Phase 03-01]: messagesRouter factory follows logsRouter no-deps pattern — reads DB directly, no DashboardDeps injection
+- [Phase 03-data-panels]: Usage route reads stats-cache.json + Anthropic OAuth API rather than spawning claude /usage CLI — more reliable, no PATH dependency
+- [Phase 03-data-panels]: All 5 Phase 3 panels wired via explicit conditionals in App.tsx; old catch-all 'Panel coming soon' block removed
 
 ### Pending Todos
 
@@ -111,6 +114,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T01:14:26.835Z
-Stopped at: Completed 03-01-PLAN.md (Message History Panel)
+Last session: 2026-03-16T09:36:33.537Z
+Stopped at: Completed 03-05-PLAN.md (Usage Panel + App.tsx Wiring — Phase 3 complete)
 Resume file: None
