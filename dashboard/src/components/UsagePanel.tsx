@@ -1,16 +1,46 @@
 import { useEffect, useState } from 'react';
 
+interface ModelUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens: number;
+  cacheCreationInputTokens: number;
+  webSearchRequests: number;
+}
+
+interface DailyActivity {
+  date: string;
+  messageCount: number;
+  sessionCount: number;
+  toolCallCount: number;
+}
+
 interface UsageData {
-  sessionUsage?: string;
-  weeklyLimit?: string;
-  resetTime?: string;
-  raw?: string;
+  lastComputedDate: string | null;
+  modelUsage: Record<string, ModelUsage>;
+  recentActivity: DailyActivity[];
+  totalSessions: number;
+  totalMessages: number;
+  firstSessionDate: string | null;
 }
 
 interface UsageResponse {
   data: UsageData | null;
   error: string | null;
   fetchedAt: number;
+}
+
+function fmt(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return String(n);
+}
+
+function shortModel(model: string): string {
+  return model
+    .replace('claude-', '')
+    .replace(/-\d{8}$/, '')
+    .replace(/-20\d{6}$/, '');
 }
 
 export default function UsagePanel() {
@@ -42,14 +72,16 @@ export default function UsagePanel() {
     return `${mins}m ago`;
   }
 
+  const data = response?.data;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-gray-300">Claude Usage</h2>
         <div className="flex items-center gap-3">
           {response && (
             <span className="text-gray-500 text-xs">
-              Last fetched: {secondsAgo(response.fetchedAt)}
+              {secondsAgo(response.fetchedAt)}
             </span>
           )}
           <button
@@ -68,63 +100,112 @@ export default function UsagePanel() {
 
       {response?.error && (
         <div className="bg-red-900/40 border border-red-700 text-red-300 text-sm rounded px-4 py-3">
-          <p className="font-medium mb-1">Error fetching usage</p>
+          <p className="font-medium mb-1">Error reading usage stats</p>
           <p className="font-mono text-xs">{response.error}</p>
-          <p className="text-red-400 text-xs mt-2">
-            This may mean the claude CLI is not in PATH or does not support the
-            /usage command.
-          </p>
         </div>
       )}
 
-      {response && !response.error && response.data && (
-        <div className="space-y-3">
-          {/* Structured fields */}
-          {(response.data.sessionUsage ||
-            response.data.weeklyLimit ||
-            response.data.resetTime) && (
-            <div className="bg-gray-900 rounded-lg divide-y divide-gray-800">
-              {response.data.sessionUsage && (
-                <div className="px-4 py-3 flex justify-between text-sm">
-                  <span className="text-gray-400">Session usage</span>
-                  <span className="text-gray-100 font-mono">
-                    {response.data.sessionUsage}
-                  </span>
-                </div>
-              )}
-              {response.data.weeklyLimit && (
-                <div className="px-4 py-3 flex justify-between text-sm">
-                  <span className="text-gray-400">Weekly limit</span>
-                  <span className="text-gray-100 font-mono">
-                    {response.data.weeklyLimit}
-                  </span>
-                </div>
-              )}
-              {response.data.resetTime && (
-                <div className="px-4 py-3 flex justify-between text-sm">
-                  <span className="text-gray-400">Resets</span>
-                  <span className="text-gray-100 font-mono">
-                    {response.data.resetTime}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
+      {data && (
+        <>
+          {/* Totals */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Sessions', value: data.totalSessions.toLocaleString() },
+              { label: 'Messages', value: data.totalMessages.toLocaleString() },
+              {
+                label: 'Since',
+                value: data.firstSessionDate
+                  ? new Date(data.firstSessionDate).toLocaleDateString(
+                      undefined,
+                      { month: 'short', year: 'numeric' },
+                    )
+                  : '—',
+              },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-gray-900 rounded-lg px-4 py-3">
+                <p className="text-gray-500 text-xs mb-1">{label}</p>
+                <p className="text-gray-100 font-mono text-sm">{value}</p>
+              </div>
+            ))}
+          </div>
 
-          {/* Raw output */}
-          {response.data.raw && (
+          {/* Model token breakdown */}
+          {Object.keys(data.modelUsage).length > 0 && (
             <div>
-              <p className="text-gray-500 text-xs mb-1">Raw output</p>
-              <pre className="bg-gray-800 text-gray-300 text-xs font-mono rounded p-3 overflow-x-auto whitespace-pre-wrap max-h-64 overflow-y-auto">
-                {response.data.raw}
-              </pre>
+              <p className="text-gray-500 text-xs mb-2">
+                Token usage by model
+                {data.lastComputedDate && (
+                  <span className="ml-2 text-gray-600">
+                    (computed {data.lastComputedDate})
+                  </span>
+                )}
+              </p>
+              <div className="bg-gray-900 rounded-lg divide-y divide-gray-800 overflow-x-auto">
+                <div className="grid grid-cols-5 px-4 py-2 text-xs text-gray-500">
+                  <span>Model</span>
+                  <span className="text-right">Input</span>
+                  <span className="text-right">Output</span>
+                  <span className="text-right">Cache read</span>
+                  <span className="text-right">Cache write</span>
+                </div>
+                {Object.entries(data.modelUsage).map(([model, usage]) => (
+                  <div
+                    key={model}
+                    className="grid grid-cols-5 px-4 py-2.5 text-xs"
+                  >
+                    <span className="text-gray-300 font-mono truncate pr-2">
+                      {shortModel(model)}
+                    </span>
+                    <span className="text-gray-100 font-mono text-right">
+                      {fmt(usage.inputTokens)}
+                    </span>
+                    <span className="text-gray-100 font-mono text-right">
+                      {fmt(usage.outputTokens)}
+                    </span>
+                    <span className="text-gray-400 font-mono text-right">
+                      {fmt(usage.cacheReadInputTokens)}
+                    </span>
+                    <span className="text-gray-400 font-mono text-right">
+                      {fmt(usage.cacheCreationInputTokens)}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
-        </div>
-      )}
 
-      {response && !response.error && !response.data && (
-        <p className="text-gray-500 text-sm">No usage data available.</p>
+          {/* Recent activity */}
+          {data.recentActivity.length > 0 && (
+            <div>
+              <p className="text-gray-500 text-xs mb-2">Recent activity</p>
+              <div className="bg-gray-900 rounded-lg divide-y divide-gray-800">
+                <div className="grid grid-cols-4 px-4 py-2 text-xs text-gray-500">
+                  <span>Date</span>
+                  <span className="text-right">Messages</span>
+                  <span className="text-right">Sessions</span>
+                  <span className="text-right">Tool calls</span>
+                </div>
+                {data.recentActivity.map((day) => (
+                  <div
+                    key={day.date}
+                    className="grid grid-cols-4 px-4 py-2 text-xs"
+                  >
+                    <span className="text-gray-400 font-mono">{day.date}</span>
+                    <span className="text-gray-100 font-mono text-right">
+                      {day.messageCount.toLocaleString()}
+                    </span>
+                    <span className="text-gray-100 font-mono text-right">
+                      {day.sessionCount}
+                    </span>
+                    <span className="text-gray-400 font-mono text-right">
+                      {day.toolCallCount}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
