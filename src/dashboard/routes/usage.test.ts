@@ -1,169 +1,89 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock child_process before importing the module under test
-vi.mock('child_process', () => ({
-  spawn: vi.fn(),
-}));
+vi.mock('fs/promises', () => ({ readFile: vi.fn() }));
 
-import { spawn } from 'child_process';
+import { readFile } from 'fs/promises';
 import { usageRouter } from './usage.js';
-import type { EventEmitter } from 'events';
 
-// Helper to create a mock child process
-function makeMockProc(
-  opts: { stdout?: string; stderr?: string; exitCode?: number; errorCode?: string } = {},
-) {
-  const listeners: Record<string, ((...args: any[]) => void)[]> = {};
-  const stdoutListeners: Record<string, ((...args: any[]) => void)[]> = {};
-  const stderrListeners: Record<string, ((...args: any[]) => void)[]> = {};
+const MOCK_CREDENTIALS = JSON.stringify({
+  claudeAiOauth: { accessToken: 'test-token-123' },
+});
 
-  const makeEmitter = (listenerMap: typeof listeners) => ({
-    on: (event: string, handler: (...args: any[]) => void) => {
-      listenerMap[event] = listenerMap[event] || [];
-      listenerMap[event].push(handler);
-    },
-  });
+const MOCK_USAGE = {
+  five_hour: { utilization: 42, resets_at: '2026-03-16T06:00:00+00:00' },
+  seven_day: { utilization: 71, resets_at: '2026-03-20T09:00:00+00:00' },
+  extra_usage: {
+    is_enabled: true,
+    monthly_limit: 2000,
+    used_credits: 2003,
+    utilization: 100,
+  },
+};
 
-  const proc = {
-    stdout: makeEmitter(stdoutListeners),
-    stderr: makeEmitter(stderrListeners),
-    on: (event: string, handler: (...args: any[]) => void) => {
-      listeners[event] = listeners[event] || [];
-      listeners[event].push(handler);
-    },
-    _emit: (event: string, ...args: any[]) => {
-      (listeners[event] || []).forEach((h) => h(...args));
-    },
-    _emitStdout: (data: string) => {
-      (stdoutListeners['data'] || []).forEach((h) => h(Buffer.from(data)));
-    },
-    _emitStderr: (data: string) => {
-      (stderrListeners['data'] || []).forEach((h) => h(Buffer.from(data)));
-    },
-    _resolve: () => {
-      if (opts.stdout) {
-        (stdoutListeners['data'] || []).forEach((h) =>
-          h(Buffer.from(opts.stdout!)),
-        );
-      }
-      if (opts.stderr) {
-        (stderrListeners['data'] || []).forEach((h) =>
-          h(Buffer.from(opts.stderr!)),
-        );
-      }
-      if (opts.errorCode) {
-        const err: any = new Error('spawn error');
-        err.code = opts.errorCode;
-        (listeners['error'] || []).forEach((h) => h(err));
-      } else {
-        (listeners['close'] || []).forEach((h) => h(opts.exitCode ?? 0));
-      }
-    },
-  };
-
-  return proc;
-}
-
-// Helper to invoke the /usage route handler directly
 async function callUsageHandler(router: ReturnType<typeof usageRouter>) {
   const layer = (router as any).stack.find(
     (l: any) => l.route?.path === '/usage' && l.route?.methods?.get,
   );
   expect(layer).toBeDefined();
-
   let jsonResponse: any;
-  const res = {
-    json: vi.fn((val: any) => {
-      jsonResponse = val;
-    }),
-  } as any;
-  const req = {} as any;
-
-  await layer.route.stack[0].handle(req, res, vi.fn());
+  const res = { json: vi.fn((val: any) => { jsonResponse = val; }) } as any;
+  await layer.route.stack[0].handle({} as any, res, vi.fn());
   return jsonResponse;
 }
 
 describe('GET /usage route', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    // Reset the module-level cache between tests by re-importing
-    // We'll access the router fresh each test
+    vi.mocked(readFile).mockResolvedValue(MOCK_CREDENTIALS as any);
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue(MOCK_USAGE),
+    }) as any;
   });
 
-  it('returns { data, error: null, fetchedAt } on successful spawn', async () => {
-    const proc = makeMockProc({ stdout: 'Session: 100 tokens\nWeekly limit: 500', exitCode: 0 });
-    vi.mocked(spawn).mockReturnValue(proc as any);
-
-    const router = usageRouter();
-    // Trigger the handler; proc resolves asynchronously
-    const promise = callUsageHandler(router);
-    proc._resolve();
-    const result = await promise;
-
+  it('returns { data, error: null, fetchedAt } on success', async () => {
+    const result = await callUsageHandler(usageRouter());
     expect(result.error).toBeNull();
     expect(result.fetchedAt).toBeTypeOf('number');
-    expect(result.data).toBeDefined();
-    expect(result.data.raw).toContain('Session');
+    expect(result.data.five_hour.utilization).toBe(42);
+    expect(result.data.seven_day.utilization).toBe(71);
+    expect(result.data.extra_usage.used_credits).toBe(2003);
   });
 
-  it('does NOT re-spawn on second call within TTL (cache hit)', async () => {
-    const proc1 = makeMockProc({ stdout: 'usage output', exitCode: 0 });
-    vi.mocked(spawn).mockReturnValue(proc1 as any);
-
-    // First call
+  it('does not re-fetch within TTL (cache hit)', async () => {
     const router = usageRouter();
-    const p1 = callUsageHandler(router);
-    proc1._resolve();
-    await p1;
-
-    // Second call — should hit cache, spawn should still be called only once
-    const p2 = callUsageHandler(router);
-    await p2;
-
-    expect(spawn).toHaveBeenCalledTimes(1);
+    await callUsageHandler(router);
+    await callUsageHandler(router);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
-  it('returns { data: null, error: "...", fetchedAt } when CLI exits non-zero (status 200)', async () => {
-    const proc = makeMockProc({ stdout: 'something failed', exitCode: 1 });
-    vi.mocked(spawn).mockReturnValue(proc as any);
-
-    const router = usageRouter();
-    const promise = callUsageHandler(router);
-    proc._resolve();
-    const result = await promise;
-
+  it('returns { data: null, error } when credentials file is missing', async () => {
+    vi.mocked(readFile).mockRejectedValue(
+      Object.assign(new Error('ENOENT'), { code: 'ENOENT' }),
+    );
+    const result = await callUsageHandler(usageRouter());
     expect(result.data).toBeNull();
     expect(result.error).toBeTypeOf('string');
-    expect(result.error.length).toBeGreaterThan(0);
     expect(result.fetchedAt).toBeTypeOf('number');
-    // Must be 200 (json called, not status(500))
   });
 
-  it('returns { data: null, error: "claude CLI not found in PATH" } on ENOENT', async () => {
-    const proc = makeMockProc({ errorCode: 'ENOENT' });
-    vi.mocked(spawn).mockReturnValue(proc as any);
-
-    const router = usageRouter();
-    const promise = callUsageHandler(router);
-    proc._resolve();
-    const result = await promise;
-
+  it('returns { data: null, error } when API returns non-ok', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      text: vi.fn().mockResolvedValue('permission_error'),
+    }) as any;
+    const result = await callUsageHandler(usageRouter());
     expect(result.data).toBeNull();
-    expect(result.error).toBe('claude CLI not found in PATH');
-    expect(result.fetchedAt).toBeTypeOf('number');
+    expect(result.error).toContain('403');
   });
 
-  it('returns { data: { raw: stdout }, error: null } when output cannot be structured-parsed', async () => {
-    const rawOutput = 'some completely unrecognised output format';
-    const proc = makeMockProc({ stdout: rawOutput, exitCode: 0 });
-    vi.mocked(spawn).mockReturnValue(proc as any);
-
-    const router = usageRouter();
-    const promise = callUsageHandler(router);
-    proc._resolve();
-    const result = await promise;
-
-    expect(result.error).toBeNull();
-    expect(result.data.raw).toBe(rawOutput);
+  it('passes correct Authorization header to API', async () => {
+    await callUsageHandler(usageRouter());
+    const [url, init] = (global.fetch as any).mock.calls[0];
+    expect(url).toBe('https://api.anthropic.com/api/oauth/usage');
+    expect((init.headers as Record<string, string>)['Authorization']).toBe(
+      'Bearer test-token-123',
+    );
   });
 });
