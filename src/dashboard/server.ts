@@ -61,6 +61,7 @@ export function startDashboardServer(
   app.use('/api', logsRouter());
   app.use('/api', memoryRouter());
   app.use('/api', messagesRouter());
+  app.use('/api', tasksRouter());
   app.use('/api', todosRouter());
 
   // ── Static files (built dashboard) ─────────────────────────────────────────
