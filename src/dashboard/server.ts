@@ -16,6 +16,7 @@ import { messagesRouter } from './routes/messages.js';
 import { statsRouter } from './routes/stats.js';
 import { tasksRouter } from './routes/tasks.js';
 import { todosRouter } from './routes/todos.js';
+import { usageRouter } from './routes/usage.js';
 
 /** Module-scoped deps reference — used by WebSocket chat handler (02-04) */
 let dashboardDeps: DashboardDeps | null = null;
@@ -63,6 +64,7 @@ export function startDashboardServer(
   app.use('/api', messagesRouter());
   app.use('/api', tasksRouter());
   app.use('/api', todosRouter());
+  app.use('/api', usageRouter());
 
   // ── Static files (built dashboard) ─────────────────────────────────────────
   const distPath = path.resolve(process.cwd(), 'dashboard', 'dist');

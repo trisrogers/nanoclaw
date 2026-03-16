@@ -4,7 +4,12 @@ import ChatPanel from './components/ChatPanel';
 import ContainersPanel from './components/ContainersPanel';
 import GroupsPanel from './components/GroupsPanel';
 import LogsPanel from './components/LogsPanel';
+import MemoryPanel, { memoryIsDirtyRef } from './components/MemoryPanel';
+import MessagesPanel from './components/MessagesPanel';
 import OverviewPanel from './components/OverviewPanel';
+import TasksPanel from './components/TasksPanel';
+import TodosPanel from './components/TodosPanel';
+import UsagePanel from './components/UsagePanel';
 
 const NAV_ITEMS = [
   'Overview',
@@ -24,6 +29,14 @@ type NavItem = (typeof NAV_ITEMS)[number];
 export default function App() {
   const [active, setActive] = useState<NavItem>('Overview');
 
+  const handleNavClick = (item: NavItem) => {
+    if (active === 'Memory' && memoryIsDirtyRef.current) {
+      if (!window.confirm('You have unsaved changes in Memory. Leave anyway?'))
+        return;
+    }
+    setActive(item);
+  };
+
   return (
     <div className="flex h-screen bg-gray-950 text-gray-100">
       {/* Sidebar */}
@@ -37,7 +50,7 @@ export default function App() {
           {NAV_ITEMS.map((item) => (
             <button
               key={item}
-              onClick={() => setActive(item)}
+              onClick={() => handleNavClick(item)}
               className={`w-full text-left px-4 py-2 text-sm transition-colors ${
                 active === item
                   ? 'bg-gray-800 text-white font-medium'
@@ -57,14 +70,11 @@ export default function App() {
         {active === 'Containers' && <ContainersPanel />}
         {active === 'Groups' && <GroupsPanel />}
         {active === 'Logs' && <LogsPanel />}
-        {!['Overview', 'Chat', 'Containers', 'Groups', 'Logs'].includes(active) && (
-          <div className="text-gray-500 text-sm">
-            <h1 className="text-xl font-semibold text-gray-200 mb-2">
-              {active}
-            </h1>
-            <p>Panel coming soon.</p>
-          </div>
-        )}
+        {active === 'Messages' && <MessagesPanel />}
+        {active === 'Memory' && <MemoryPanel />}
+        {active === 'Tasks' && <TasksPanel />}
+        {active === 'Todos' && <TodosPanel />}
+        {active === 'Usage' && <UsagePanel />}
       </main>
     </div>
   );
