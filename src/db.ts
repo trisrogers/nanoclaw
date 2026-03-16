@@ -40,6 +40,7 @@ function createSchema(database: Database.Database): void {
       FOREIGN KEY (chat_jid) REFERENCES chats(jid)
     );
     CREATE INDEX IF NOT EXISTS idx_timestamp ON messages(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_messages_jid_ts ON messages(chat_jid, timestamp DESC);
 
     CREATE TABLE IF NOT EXISTS scheduled_tasks (
       id TEXT PRIMARY KEY,
@@ -404,6 +405,41 @@ export function getMessagesSince(
     .all(chatJid, sinceTimestamp, `${botPrefix}:%`, limit) as NewMessage[];
 }
 
+export interface MessageRow {
+  id: string;
+  chat_jid: string;
+  sender_name: string;
+  content: string;
+  timestamp: string;
+  is_bot_message: number;
+}
+
+export function getMessagesByGroup(
+  chatJid: string,
+  page: number,
+  search?: string,
+  pageSize: number = 50,
+): { messages: MessageRow[]; total: number } {
+  const db = getDb();
+  const offset = (page - 1) * pageSize;
+  const base = search
+    ? 'WHERE chat_jid = ? AND content LIKE ?'
+    : 'WHERE chat_jid = ?';
+  const params: unknown[] = search ? [chatJid, `%${search}%`] : [chatJid];
+  const total = (
+    db.prepare(`SELECT COUNT(*) as n FROM messages ${base}`).get(...params) as {
+      n: number;
+    }
+  ).n;
+  const messages = db
+    .prepare(
+      `SELECT id, chat_jid, sender_name, content, timestamp, is_bot_message
+       FROM messages ${base} ORDER BY timestamp DESC LIMIT ? OFFSET ?`,
+    )
+    .all(...params, pageSize, offset) as MessageRow[];
+  return { messages, total };
+}
+
 export function createTask(
   task: Omit<ScheduledTask, 'last_run' | 'last_result'>,
 ): void {
@@ -519,6 +555,19 @@ export function updateTaskAfterRun(
     WHERE id = ?
   `,
   ).run(nextRun, now, lastResult, nextRun, id);
+}
+
+export function getTaskRunLogs(
+  taskId: string,
+  limit: number = 20,
+): TaskRunLog[] {
+  return getDb()
+    .prepare(
+      `SELECT task_id, run_at, duration_ms, status, result, error
+       FROM task_run_logs WHERE task_id = ?
+       ORDER BY run_at DESC LIMIT ?`,
+    )
+    .all(taskId, Math.min(limit, 20)) as TaskRunLog[];
 }
 
 export function logTaskRun(log: TaskRunLog): void {
