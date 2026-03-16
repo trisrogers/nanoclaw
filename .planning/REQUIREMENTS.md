@@ -43,8 +43,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Message History
 
-- [ ] **MSG-01**: User can browse message history per group, paginated (50 messages per page)
-- [ ] **MSG-02**: User can search message history by text content within a group
+- [x] **MSG-01**: User can browse message history per group, paginated (50 messages per page)
+- [x] **MSG-02**: User can search message history by text content within a group
 
 ### CLAUDE.md Editor
 
