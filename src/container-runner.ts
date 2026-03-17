@@ -4,6 +4,7 @@
  */
 import { ChildProcess, exec, spawn } from 'child_process';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 import {
@@ -16,6 +17,8 @@ import {
   IDLE_TIMEOUT,
   TIMEZONE,
 } from './config.js';
+export { writeTodoSnapshot } from './todo.js';
+import { readEnvFile } from './env.js';
 import { resolveGroupFolderPath, resolveGroupIpcPath } from './group-folder.js';
 import { logger } from './logger.js';
 import {
@@ -41,6 +44,7 @@ export interface ContainerInput {
   isMain: boolean;
   isScheduledTask?: boolean;
   assistantName?: string;
+  imageAttachments?: Array<{ relativePath: string; mediaType: string }>;
 }
 
 export interface ContainerOutput {
@@ -122,28 +126,58 @@ function buildVolumeMounts(
     '.claude',
   );
   fs.mkdirSync(groupSessionsDir, { recursive: true });
+  // Always write settings.json so MCP config stays current
   const settingsFile = path.join(groupSessionsDir, 'settings.json');
-  if (!fs.existsSync(settingsFile)) {
-    fs.writeFileSync(
-      settingsFile,
-      JSON.stringify(
-        {
-          env: {
-            // Enable agent swarms (subagent orchestration)
-            // https://code.claude.com/docs/en/agent-teams#orchestrate-teams-of-claude-code-sessions
-            CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
-            // Load CLAUDE.md from additional mounted directories
-            // https://code.claude.com/docs/en/memory#load-memory-from-additional-directories
-            CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1',
-            // Enable Claude's memory feature (persists user preferences between sessions)
-            // https://code.claude.com/docs/en/memory#manage-auto-memory
-            CLAUDE_CODE_DISABLE_AUTO_MEMORY: '0',
-          },
+  const notionApiKey =
+    process.env.NOTION_API_KEY ||
+    readEnvFile(['NOTION_API_KEY']).NOTION_API_KEY;
+  fs.writeFileSync(
+    settingsFile,
+    JSON.stringify(
+      {
+        env: {
+          // Enable agent swarms (subagent orchestration)
+          // https://code.claude.com/docs/en/agent-teams#orchestrate-teams-of-claude-code-sessions
+          CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
+          // Load CLAUDE.md from additional mounted directories
+          // https://code.claude.com/docs/en/memory#load-memory-from-additional-directories
+          CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1',
+          // Enable Claude's memory feature (persists user preferences between sessions)
+          // https://code.claude.com/docs/en/memory#manage-auto-memory
+          CLAUDE_CODE_DISABLE_AUTO_MEMORY: '0',
         },
-        null,
-        2,
-      ) + '\n',
-    );
+        mcpServers: {},
+      },
+      null,
+      2,
+    ) + '\n',
+  );
+
+  // Inject Notion OAuth credentials (Notion tokens only — main Claude auth excluded)
+  const hostCredsPath = path.join(os.homedir(), '.claude', '.credentials.json');
+  if (fs.existsSync(hostCredsPath)) {
+    try {
+      const hostCreds = JSON.parse(fs.readFileSync(hostCredsPath, 'utf-8'));
+      const mcpOAuth = hostCreds.mcpOAuth as
+        | Record<string, unknown>
+        | undefined;
+      if (mcpOAuth) {
+        const notionEntries = Object.entries(mcpOAuth).filter(([key]) =>
+          key.toLowerCase().includes('notion'),
+        );
+        if (notionEntries.length > 0) {
+          const containerCreds = {
+            mcpOAuth: Object.fromEntries(notionEntries),
+          };
+          fs.writeFileSync(
+            path.join(groupSessionsDir, '.credentials.json'),
+            JSON.stringify(containerCreds, null, 2) + '\n',
+          );
+        }
+      }
+    } catch {
+      // Non-fatal — Notion MCP will fall back to re-auth in container
+    }
   }
 
   // Sync skills from container/skills/ into each group's .claude/skills/
@@ -162,6 +196,17 @@ function buildVolumeMounts(
     containerPath: '/home/node/.claude',
     readonly: false,
   });
+
+  // Gmail credentials directory (for Gmail MCP inside the container)
+  const homeDir = os.homedir();
+  const gmailDir = path.join(homeDir, '.gmail-mcp');
+  if (fs.existsSync(gmailDir)) {
+    mounts.push({
+      hostPath: gmailDir,
+      containerPath: '/home/node/.gmail-mcp',
+      readonly: false, // MCP may need to refresh OAuth tokens
+    });
+  }
 
   // Per-group IPC namespace: each group gets its own IPC directory
   // This prevents cross-group privilege escalation via IPC
@@ -221,6 +266,14 @@ function buildContainerArgs(
 
   // Pass host timezone so container's local time matches the user's
   args.push('-e', `TZ=${TIMEZONE}`);
+
+  // Pass Notion API key if configured
+  const notionApiKey =
+    process.env.NOTION_API_KEY ||
+    readEnvFile(['NOTION_API_KEY']).NOTION_API_KEY;
+  if (notionApiKey) {
+    args.push('-e', `NOTION_API_KEY=${notionApiKey}`);
+  }
 
   // Route API traffic through the credential proxy (containers never see real secrets)
   args.push(

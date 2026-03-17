@@ -1,0 +1,54 @@
+# Telegram Inline Buttons
+
+Send a message with Yes/No (or any) inline button choices to a Telegram chat.
+The user's tap is delivered back to you as a plain text message.
+
+## How to use
+
+Write a JSON file to the IPC messages directory:
+
+```bash
+cat > /workspace/ipc/messages/buttons-$(date +%s%N).json << 'EOF'
+{
+  "type": "message_with_buttons",
+  "chatJid": "CHAT_JID",
+  "text": "Your question here",
+  "buttons": [["Yes", "No"]]
+}
+EOF
+```
+
+Replace `CHAT_JID` with the JID of the chat (e.g. `tg:8514304397`).
+The `CHAT_JID` for the current conversation is available in your system prompt.
+
+## Button layout
+
+`buttons` is an array of rows. Each row is an array of button labels.
+
+```json
+"buttons": [["Yes", "No"]]           // one row, two buttons
+"buttons": [["Option A"], ["Option B"], ["Option C"]]  // three rows
+"buttons": [["Confirm", "Cancel"]]   // one row
+```
+
+## Example: confirm before creating a calendar event
+
+```bash
+cat > /workspace/ipc/messages/confirm-$(date +%s%N).json << 'EOF'
+{
+  "type": "message_with_buttons",
+  "chatJid": "tg:8514304397",
+  "text": "Create a calendar event for this?",
+  "buttons": [["Yes", "No"]]
+}
+EOF
+```
+
+After writing the file, stop and wait. The user's button tap will arrive as your
+next message (e.g. `"Yes"` or `"No"`). Then act on it.
+
+## Notes
+
+- Only works on Telegram chats (jid starting with `tg:`)
+- Falls back to plain text on channels that don't support buttons
+- The button label is the callback data — keep labels short and unambiguous

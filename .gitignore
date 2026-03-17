@@ -27,6 +27,7 @@ groups/global/*
 
 # OS
 .DS_Store
+Thumbs.db
 
 # IDE
 .idea/
@@ -36,3 +37,9 @@ groups/global/*
 .nanoclaw/
 
 agents-sdk-docs
+
+# Session history (personal/sensitive)
+CLAUDE-session-history.md
+
+# Local Claude Code settings (contain hardcoded paths and personal permissions)
+.claude/settings.local.json

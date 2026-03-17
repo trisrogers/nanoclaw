@@ -4,22 +4,32 @@ import path from 'path';
 import {
   ASSISTANT_NAME,
   CREDENTIAL_PROXY_PORT,
+  DASHBOARD_BIND,
+  DASHBOARD_PORT,
+  DATA_DIR,
   IDLE_TIMEOUT,
   POLL_INTERVAL,
+  TELEGRAM_BOT_POOL,
   TIMEZONE,
   TRIGGER_PATTERN,
 } from './config.js';
 import { startCredentialProxy } from './credential-proxy.js';
+import { startDashboardServer } from './dashboard/server.js';
+import { DashboardDeps } from './dashboard/types.js';
+import { WebDashboardChannel } from './channels/web-dashboard.js';
+import { getDb } from './db.js';
 import './channels/index.js';
 import {
   getChannelFactory,
   getRegisteredChannelNames,
 } from './channels/registry.js';
+import { initBotPool, sendPoolMessage } from './channels/telegram.js';
 import {
   ContainerOutput,
   runContainerAgent,
   writeGroupsSnapshot,
   writeTasksSnapshot,
+  writeTodoSnapshot,
 } from './container-runner.js';
 import {
   cleanupOrphans,
@@ -33,6 +43,7 @@ import {
   getAllTasks,
   getMessagesSince,
   getNewMessages,
+  clearSession,
   getRegisteredGroup,
   getRouterState,
   initDatabase,
@@ -47,6 +58,11 @@ import { resolveGroupFolderPath } from './group-folder.js';
 import { startIpcWatcher } from './ipc.js';
 import { findChannel, formatMessages, formatOutbound } from './router.js';
 import {
+  restoreRemoteControl,
+  startRemoteControl,
+  stopRemoteControl,
+} from './remote-control.js';
+import {
   isSenderAllowed,
   isTriggerAllowed,
   loadSenderAllowlist,
@@ -54,6 +70,7 @@ import {
 } from './sender-allowlist.js';
 import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
+import { parseImageReferences } from './image.js';
 import { logger } from './logger.js';
 
 // Re-export for backwards compatibility during refactor
@@ -67,6 +84,7 @@ let messageLoopRunning = false;
 
 const channels: Channel[] = [];
 const queue = new GroupQueue();
+const webDashboardChannel = new WebDashboardChannel();
 
 function loadState(): void {
   lastTimestamp = getRouterState('last_timestamp') || '';
@@ -176,6 +194,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   }
 
   const prompt = formatMessages(missedMessages, TIMEZONE);
+  const imageAttachments = parseImageReferences(missedMessages);
 
   // Advance cursor so the piping path in startMessageLoop won't re-fetch
   // these messages. Save the old cursor so we can roll back on error.
@@ -207,32 +226,41 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   let hadError = false;
   let outputSentToUser = false;
 
-  const output = await runAgent(group, prompt, chatJid, async (result) => {
-    // Streaming output callback — called for each agent result
-    if (result.result) {
-      const raw =
-        typeof result.result === 'string'
-          ? result.result
-          : JSON.stringify(result.result);
-      // Strip <internal>...</internal> blocks — agent uses these for internal reasoning
-      const text = raw.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
-      logger.info({ group: group.name }, `Agent output: ${raw.slice(0, 200)}`);
-      if (text) {
-        await channel.sendMessage(chatJid, text);
-        outputSentToUser = true;
+  const output = await runAgent(
+    group,
+    prompt,
+    chatJid,
+    imageAttachments,
+    async (result) => {
+      // Streaming output callback — called for each agent result
+      if (result.result) {
+        const raw =
+          typeof result.result === 'string'
+            ? result.result
+            : JSON.stringify(result.result);
+        // Strip <internal>...</internal> blocks — agent uses these for internal reasoning
+        const text = raw.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
+        logger.info(
+          { group: group.name },
+          `Agent output: ${raw.slice(0, 200)}`,
+        );
+        if (text) {
+          await channel.sendMessage(chatJid, text);
+          outputSentToUser = true;
+        }
+        // Only reset idle timer on actual results, not session-update markers (result: null)
+        resetIdleTimer();
       }
-      // Only reset idle timer on actual results, not session-update markers (result: null)
-      resetIdleTimer();
-    }
 
-    if (result.status === 'success') {
-      queue.notifyIdle(chatJid);
-    }
+      if (result.status === 'success') {
+        queue.notifyIdle(chatJid);
+      }
 
-    if (result.status === 'error') {
-      hadError = true;
-    }
-  });
+      if (result.status === 'error') {
+        hadError = true;
+      }
+    },
+  );
 
   await channel.setTyping?.(chatJid, false);
   if (idleTimer) clearTimeout(idleTimer);
@@ -264,6 +292,7 @@ async function runAgent(
   group: RegisteredGroup,
   prompt: string,
   chatJid: string,
+  imageAttachments: Array<{ relativePath: string; mediaType: string }>,
   onOutput?: (output: ContainerOutput) => Promise<void>,
 ): Promise<'success' | 'error'> {
   const isMain = group.isMain === true;
@@ -284,6 +313,9 @@ async function runAgent(
       next_run: t.next_run,
     })),
   );
+
+  // Update todo snapshot for container
+  writeTodoSnapshot(group.folder);
 
   // Update available groups snapshot (main group only can see all groups)
   const availableGroups = getAvailableGroups();
@@ -315,6 +347,7 @@ async function runAgent(
         chatJid,
         isMain,
         assistantName: ASSISTANT_NAME,
+        ...(imageAttachments.length > 0 && { imageAttachments }),
       },
       (proc, containerName) =>
         queue.registerProcess(chatJid, proc, containerName, group.folder),
@@ -470,6 +503,7 @@ async function main(): Promise<void> {
   initDatabase();
   logger.info('Database initialized');
   loadState();
+  restoreRemoteControl();
 
   // Start credential proxy (containers route API calls through this)
   const proxyServer = await startCredentialProxy(
@@ -477,9 +511,117 @@ async function main(): Promise<void> {
     PROXY_BIND_HOST,
   );
 
+  // Build DashboardDeps for dependency injection into dashboard routes
+  const dashboardDeps: DashboardDeps = {
+    getChannels: () => channels,
+    getQueueSnapshot: () => queue.getSnapshot(),
+    getActiveContainerCount: () =>
+      queue.getSnapshot().filter((s) => s.active).length,
+    getIpcQueueDepth: () => {
+      const ipcBase = path.join(DATA_DIR, 'ipc');
+      let count = 0;
+      try {
+        for (const g of fs.readdirSync(ipcBase)) {
+          for (const subdir of ['input', 'messages']) {
+            try {
+              count += fs
+                .readdirSync(path.join(ipcBase, g, subdir))
+                .filter((f) => f.endsWith('.json')).length;
+            } catch {
+              /* subdir may not exist */
+            }
+          }
+        }
+      } catch {
+        /* ipc dir may not exist yet */
+      }
+      return count;
+    },
+    getTodosDueToday: () => {
+      try {
+        const db = getDb();
+        const today = new Date().toLocaleDateString('sv', {
+          timeZone: TIMEZONE,
+        });
+        const row = db
+          .prepare(
+            `SELECT COUNT(*) as cnt FROM todos WHERE status = 'pending' AND due_date = ?`,
+          )
+          .get(today) as { cnt: number } | undefined;
+        return row?.cnt ?? 0;
+      } catch {
+        return 0;
+      }
+    },
+    getLastError: () => {
+      const ANSI = /\x1B\[[0-9;]*m/g;
+      const HEADER = /^\[[\d:.]+\]\s+(ERROR|FATAL|WARN)\s+\(\d+\):\s+(.*)/i;
+      try {
+        const content = fs.readFileSync(
+          path.join(process.cwd(), 'logs', 'nanoclaw.log'),
+          'utf-8',
+        );
+        const lines = content.split('\n').filter(Boolean).slice(-500);
+        for (let i = lines.length - 1; i >= 0; i--) {
+          const clean = lines[i].replace(ANSI, '');
+          const m = clean.match(HEADER);
+          if (
+            m &&
+            (m[1].toUpperCase() === 'ERROR' || m[1].toUpperCase() === 'FATAL')
+          ) {
+            return m[2].slice(0, 200);
+          }
+        }
+      } catch {
+        /* log file may not exist */
+      }
+      return null;
+    },
+    getRegisteredGroups: () => registeredGroups,
+    clearGroupSession: (folder: string) => {
+      const entry = Object.entries(registeredGroups).find(
+        ([, g]) => g.folder === folder,
+      );
+      if (!entry) return { ok: false, error: 'Group not found' };
+      const [jid] = entry;
+      try {
+        clearSession(folder);
+        delete sessions[jid];
+        queue.closeStdin(jid);
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
+    },
+    restartGroupContainer: (folder: string) => {
+      const entry = Object.entries(registeredGroups).find(
+        ([, g]) => g.folder === folder,
+      );
+      if (!entry) return { ok: false, error: 'Group not found' };
+      const [jid] = entry;
+      try {
+        queue.closeStdin(jid);
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
+    },
+    webDashboardChannel,
+    storeMessage,
+    enqueueMessageCheck: (jid: string) => queue.enqueueMessageCheck(jid),
+  };
+
+  // Start dashboard HTTP + WebSocket server
+  const dashboardServer = startDashboardServer(
+    DASHBOARD_PORT,
+    DASHBOARD_BIND,
+    dashboardDeps,
+  );
+
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutdown signal received');
+    dashboardServer.close();
     proxyServer.close();
     await queue.shutdown(10000);
     for (const ch of channels) await ch.disconnect();
@@ -488,9 +630,60 @@ async function main(): Promise<void> {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
 
+  // Handle /remote-control and /remote-control-end commands
+  async function handleRemoteControl(
+    command: string,
+    chatJid: string,
+    msg: NewMessage,
+  ): Promise<void> {
+    const group = registeredGroups[chatJid];
+    if (!group?.isMain) {
+      logger.warn(
+        { chatJid, sender: msg.sender },
+        'Remote control rejected: not main group',
+      );
+      return;
+    }
+
+    const channel = findChannel(channels, chatJid);
+    if (!channel) return;
+
+    if (command === '/remote-control') {
+      const result = await startRemoteControl(
+        msg.sender,
+        chatJid,
+        process.cwd(),
+      );
+      if (result.ok) {
+        await channel.sendMessage(chatJid, result.url);
+      } else {
+        await channel.sendMessage(
+          chatJid,
+          `Remote Control failed: ${result.error}`,
+        );
+      }
+    } else {
+      const result = stopRemoteControl();
+      if (result.ok) {
+        await channel.sendMessage(chatJid, 'Remote Control session ended.');
+      } else {
+        await channel.sendMessage(chatJid, result.error);
+      }
+    }
+  }
+
   // Channel callbacks (shared by all channels)
   const channelOpts = {
     onMessage: (chatJid: string, msg: NewMessage) => {
+      // Remote control commands — intercept before storage
+      const trimmed = msg.content.trim();
+      if (trimmed === '/remote-control' || trimmed === '/remote-control-end') {
+        handleRemoteControl(trimmed, chatJid, msg).catch((err) =>
+          logger.error({ err, chatJid }, 'Remote control command error'),
+        );
+        return;
+      }
+
       // Sender allowlist drop mode: discard messages from denied senders before storing
       if (!msg.is_from_me && !msg.is_bot_message && registeredGroups[chatJid]) {
         const cfg = loadSenderAllowlist();
@@ -517,6 +710,18 @@ async function main(): Promise<void> {
       isGroup?: boolean,
     ) => storeChatMetadata(chatJid, timestamp, name, channel, isGroup),
     registeredGroups: () => registeredGroups,
+    onResetSession: (chatJid: string) => {
+      const group = getRegisteredGroup(chatJid);
+      if (group) {
+        clearSession(group.folder);
+        delete sessions[group.folder];
+        queue.closeStdin(chatJid);
+        logger.info(
+          { chatJid, folder: group.folder },
+          'Session cleared via /new command',
+        );
+      }
+    },
   };
 
   // Create and connect all registered channels.
@@ -538,6 +743,11 @@ async function main(): Promise<void> {
   if (channels.length === 0) {
     logger.fatal('No channels connected');
     process.exit(1);
+  }
+
+  // Initialize Telegram bot pool for agent teams (if configured)
+  if (TELEGRAM_BOT_POOL.length > 0) {
+    await initBotPool(TELEGRAM_BOT_POOL);
   }
 
   // Start subsystems (independently of connection handler)
@@ -563,6 +773,21 @@ async function main(): Promise<void> {
       if (!channel) throw new Error(`No channel for JID: ${jid}`);
       return channel.sendMessage(jid, text);
     },
+    sendPoolMessage: (jid, text, sender, groupFolder) =>
+      sendPoolMessage(jid, text, sender, groupFolder, (j, t) => {
+        const channel = findChannel(channels, j);
+        if (!channel) throw new Error(`No channel for JID: ${j}`);
+        return channel.sendMessage(j, t);
+      }),
+    sendMessageWithButtons: (jid, text, buttons) => {
+      const channel = findChannel(channels, jid);
+      if (!channel) throw new Error(`No channel for JID: ${jid}`);
+      if (!channel.sendMessageWithButtons) {
+        logger.warn({ jid }, 'Channel does not support sendMessageWithButtons');
+        return channel.sendMessage(jid, text);
+      }
+      return channel.sendMessageWithButtons(jid, text, buttons);
+    },
     registeredGroups: () => registeredGroups,
     registerGroup,
     syncGroups: async (force: boolean) => {
@@ -576,6 +801,17 @@ async function main(): Promise<void> {
     writeGroupsSnapshot: (gf, im, ag, rj) =>
       writeGroupsSnapshot(gf, im, ag, rj),
   });
+  // Register dashboard channel and group (in-memory only — NOT persisted to DB)
+  channels.push(webDashboardChannel);
+  registeredGroups['web:dashboard'] = {
+    name: 'Dashboard',
+    folder: 'dashboard',
+    trigger: '',
+    added_at: new Date().toISOString(),
+    isMain: true,
+    requiresTrigger: false,
+  };
+
   queue.setProcessMessagesFn(processGroupMessages);
   recoverPendingMessages();
   startMessageLoop().catch((err) => {

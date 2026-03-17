@@ -6,12 +6,34 @@ import { CronExpressionParser } from 'cron-parser';
 import { DATA_DIR, IPC_POLL_INTERVAL, TIMEZONE } from './config.js';
 import { AvailableGroup } from './container-runner.js';
 import { createTask, deleteTask, getTaskById, updateTask } from './db.js';
+import {
+  completeTodo,
+  createSubtask,
+  createTodo,
+  getTodo,
+  updateTodo,
+  writeTodoSnapshot,
+  type TodoAssignee,
+  type TodoPriority,
+  type TodoStatus,
+} from './todo.js';
 import { isValidGroupFolder } from './group-folder.js';
 import { logger } from './logger.js';
 import { RegisteredGroup } from './types.js';
 
 export interface IpcDeps {
   sendMessage: (jid: string, text: string) => Promise<void>;
+  sendPoolMessage?: (
+    jid: string,
+    text: string,
+    sender: string,
+    groupFolder: string,
+  ) => Promise<void>;
+  sendMessageWithButtons?: (
+    jid: string,
+    text: string,
+    buttons: string[][],
+  ) => Promise<void>;
   registeredGroups: () => Record<string, RegisteredGroup>;
   registerGroup: (jid: string, group: RegisteredGroup) => void;
   syncGroups: (force: boolean) => Promise<void>;
@@ -80,7 +102,20 @@ export function startIpcWatcher(deps: IpcDeps): void {
                   isMain ||
                   (targetGroup && targetGroup.folder === sourceGroup)
                 ) {
-                  await deps.sendMessage(data.chatJid, data.text);
+                  if (
+                    data.sender &&
+                    data.chatJid.startsWith('tg:') &&
+                    deps.sendPoolMessage
+                  ) {
+                    await deps.sendPoolMessage(
+                      data.chatJid,
+                      data.text,
+                      data.sender,
+                      sourceGroup,
+                    );
+                  } else {
+                    await deps.sendMessage(data.chatJid, data.text);
+                  }
                   logger.info(
                     { chatJid: data.chatJid, sourceGroup },
                     'IPC message sent',
@@ -89,6 +124,33 @@ export function startIpcWatcher(deps: IpcDeps): void {
                   logger.warn(
                     { chatJid: data.chatJid, sourceGroup },
                     'Unauthorized IPC message attempt blocked',
+                  );
+                }
+              } else if (
+                data.type === 'message_with_buttons' &&
+                data.chatJid &&
+                data.text &&
+                Array.isArray(data.buttons) &&
+                deps.sendMessageWithButtons
+              ) {
+                const targetGroup = registeredGroups[data.chatJid];
+                if (
+                  isMain ||
+                  (targetGroup && targetGroup.folder === sourceGroup)
+                ) {
+                  await deps.sendMessageWithButtons(
+                    data.chatJid,
+                    data.text,
+                    data.buttons,
+                  );
+                  logger.info(
+                    { chatJid: data.chatJid, sourceGroup },
+                    'IPC message_with_buttons sent',
+                  );
+                } else {
+                  logger.warn(
+                    { chatJid: data.chatJid, sourceGroup },
+                    'Unauthorized IPC message_with_buttons attempt blocked',
                   );
                 }
               }
@@ -171,6 +233,19 @@ export async function processTaskIpc(
     trigger?: string;
     requiresTrigger?: boolean;
     containerConfig?: RegisteredGroup['containerConfig'];
+    // For todo_* types
+    title?: string;
+    assignee?: string;
+    projectCode?: string;
+    projectName?: string;
+    priority?: string;
+    dueDate?: string;
+    reminderAt?: string;
+    tags?: string[];
+    notes?: string;
+    notionId?: string;
+    parentTaskId?: string;
+    status?: string;
   },
   sourceGroup: string, // Verified identity from IPC directory
   isMain: boolean, // Verified from directory path
@@ -446,6 +521,85 @@ export async function processTaskIpc(
           { data },
           'Invalid register_group request - missing required fields',
         );
+      }
+      break;
+
+    case 'todo_create':
+      if (data.title && data.assignee) {
+        const item = createTodo({
+          title: data.title,
+          assignee: data.assignee as TodoAssignee,
+          projectCode: data.projectCode,
+          projectName: data.projectName,
+          priority: data.priority as TodoPriority | undefined,
+          dueDate: data.dueDate,
+          reminderAt: data.reminderAt,
+          tags: data.tags,
+          notes: data.notes,
+        });
+        logger.info(
+          { taskId: item.task_id, sourceGroup },
+          'Todo created via IPC',
+        );
+        writeTodoSnapshot(sourceGroup);
+      } else {
+        logger.warn({ data }, 'todo_create missing required fields');
+      }
+      break;
+
+    case 'todo_create_subtask':
+      if (data.parentTaskId && data.title && data.assignee) {
+        const sub = createSubtask({
+          parentTaskId: data.parentTaskId,
+          title: data.title,
+          assignee: data.assignee as TodoAssignee,
+        });
+        if (sub) {
+          logger.info(
+            { taskId: sub.task_id, sourceGroup },
+            'Subtask created via IPC',
+          );
+          writeTodoSnapshot(sourceGroup);
+        }
+      } else {
+        logger.warn({ data }, 'todo_create_subtask missing required fields');
+      }
+      break;
+
+    case 'todo_update':
+      if (data.taskId) {
+        const todoItem = getTodo(data.taskId);
+        if (!todoItem) {
+          logger.warn({ taskId: data.taskId }, 'todo_update: task not found');
+          break;
+        }
+        updateTodo(data.taskId, {
+          title: data.title,
+          assignee: data.assignee as TodoAssignee | undefined,
+          status: data.status as TodoStatus | undefined,
+          priority: data.priority as TodoPriority | undefined,
+          dueDate: data.dueDate,
+          reminderAt: data.reminderAt,
+          tags: data.tags,
+          notes: data.notes,
+          notionId: data.notionId,
+        });
+        logger.info(
+          { taskId: data.taskId, sourceGroup },
+          'Todo updated via IPC',
+        );
+        writeTodoSnapshot(sourceGroup);
+      }
+      break;
+
+    case 'todo_complete':
+      if (data.taskId) {
+        completeTodo(data.taskId);
+        logger.info(
+          { taskId: data.taskId, sourceGroup },
+          'Todo completed via IPC',
+        );
+        writeTodoSnapshot(sourceGroup);
       }
       break;
 
