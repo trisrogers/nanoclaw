@@ -190,6 +190,17 @@ export function initDatabase(): void {
   db.pragma('journal_mode = WAL');
   createSchema(db);
 
+  // Ensure the in-memory-only web:dashboard chat exists in the chats table
+  db.prepare(
+    `INSERT OR IGNORE INTO chats (jid, name, channel, is_group) VALUES ('web:dashboard', 'Dashboard', 'web', 0)`,
+  ).run();
+
+  // Ensure web:dashboard appears in registered_groups so the dashboard API returns it
+  db.prepare(
+    `INSERT OR IGNORE INTO registered_groups (jid, name, folder, trigger_pattern, added_at, requires_trigger, is_main)
+     VALUES ('web:dashboard', 'Dashboard', 'dashboard', '', ?, 0, 1)`,
+  ).run(new Date().toISOString());
+
   // Migrate from JSON files if they exist
   migrateJsonState();
 }
@@ -418,7 +429,7 @@ export function getMessagesByGroup(
   chatJid: string,
   page: number,
   search?: string,
-  pageSize: number = 50,
+  pageSize: number = 100,
 ): { messages: MessageRow[]; total: number } {
   const db = getDb();
   const offset = (page - 1) * pageSize;

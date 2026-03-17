@@ -10,7 +10,10 @@ const mockDeps: DashboardDeps = {
   getActiveContainerCount: () => 2,
   getIpcQueueDepth: () => 5,
   getTodosDueToday: () => 3,
-  getLastError: () => 'Something went wrong',
+  getLastError: () => ({
+    message: 'Something went wrong',
+    timestamp: '12:00:00.000',
+  }),
   getRegisteredGroups: () => ({}),
   clearGroupSession: () => ({ ok: true }),
   restartGroupContainer: () => ({ ok: true }),

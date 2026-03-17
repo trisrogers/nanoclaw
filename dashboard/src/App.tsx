@@ -1,41 +1,40 @@
 import { useState } from 'react';
 
-import ChatPanel from './components/ChatPanel';
-import ContainersPanel from './components/ContainersPanel';
-import GroupsPanel from './components/GroupsPanel';
 import LogsPanel from './components/LogsPanel';
 import MemoryPanel, { memoryIsDirtyRef } from './components/MemoryPanel';
 import MessagesPanel from './components/MessagesPanel';
 import OverviewPanel from './components/OverviewPanel';
 import TasksPanel from './components/TasksPanel';
 import TodosPanel from './components/TodosPanel';
-import UsagePanel from './components/UsagePanel';
 
 const NAV_ITEMS = [
   'Overview',
-  'Chat',
-  'Containers',
-  'Logs',
-  'Groups',
   'Messages',
-  'Memory',
+  'Edit',
   'Tasks',
   'Todos',
-  'Usage',
+  'Logs',
 ] as const;
 
 type NavItem = (typeof NAV_ITEMS)[number];
 
 export default function App() {
   const [active, setActive] = useState<NavItem>('Overview');
+  const [messagesJid, setMessagesJid] = useState<string | null>(null);
 
   const handleNavClick = (item: NavItem) => {
-    if (active === 'Memory' && memoryIsDirtyRef.current) {
-      if (!window.confirm('You have unsaved changes in Memory. Leave anyway?'))
-        return;
+    if (active === 'Edit' && memoryIsDirtyRef.current) {
+      if (!window.confirm('You have unsaved changes in Edit. Leave anyway?')) return;
     }
     setActive(item);
   };
+
+  const navigateToMessages = (jid: string) => {
+    setMessagesJid(jid);
+    setActive('Messages');
+  };
+
+  const isFullHeight = active === 'Messages';
 
   return (
     <div className="flex h-screen bg-gray-950 text-gray-100">
@@ -64,17 +63,18 @@ export default function App() {
       </aside>
 
       {/* Main content */}
-      <main className={`flex-1 ${active === 'Chat' ? 'overflow-hidden flex flex-col' : 'overflow-auto p-6'}`}>
-        {active === 'Overview' && <OverviewPanel />}
-        {active === 'Chat' && <ChatPanel />}
-        {active === 'Containers' && <ContainersPanel />}
-        {active === 'Groups' && <GroupsPanel />}
-        {active === 'Logs' && <LogsPanel />}
-        {active === 'Messages' && <MessagesPanel />}
-        {active === 'Memory' && <MemoryPanel />}
+      <main className={`flex-1 ${isFullHeight ? 'overflow-hidden flex flex-col' : 'overflow-auto p-6'}`}>
+        {active === 'Overview' && <OverviewPanel onNavigateToMessages={navigateToMessages} />}
+        {active === 'Messages' && (
+          <MessagesPanel
+            key={messagesJid ?? 'default'}
+            initialJid={messagesJid}
+          />
+        )}
+        {active === 'Edit' && <MemoryPanel />}
         {active === 'Tasks' && <TasksPanel />}
         {active === 'Todos' && <TodosPanel />}
-        {active === 'Usage' && <UsagePanel />}
+        {active === 'Logs' && <LogsPanel />}
       </main>
     </div>
   );

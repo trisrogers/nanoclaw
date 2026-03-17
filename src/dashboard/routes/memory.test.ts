@@ -13,7 +13,13 @@ import { getAllRegisteredGroups } from '../../db.js';
 import { memoryRouter } from './memory.js';
 
 const mockGroups = {
-  'tg:1234': { name: 'Main', folder: 'telegram_main', trigger: '!', added_at: '2024-01-01', isMain: true },
+  'tg:1234': {
+    name: 'Main',
+    folder: 'telegram_main',
+    trigger: '!',
+    added_at: '2024-01-01',
+    isMain: true,
+  },
 };
 
 function makeApp() {
@@ -53,7 +59,9 @@ describe('GET /api/memory/:group', () => {
   });
 
   it('returns 404 for path traversal attempt', async () => {
-    const res = await supertest(makeApp()).get('/api/memory/..%2F..%2Fetc%2Fpasswd');
+    const res = await supertest(makeApp()).get(
+      '/api/memory/..%2F..%2Fetc%2Fpasswd',
+    );
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('unknown group');
   });

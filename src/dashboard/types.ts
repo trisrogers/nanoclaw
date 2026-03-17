@@ -16,7 +16,7 @@ export interface DashboardDeps {
   getActiveContainerCount: () => number;
   getIpcQueueDepth: () => number;
   getTodosDueToday: () => number;
-  getLastError: () => string | null;
+  getLastError: () => { message: string; timestamp: string } | null;
   getRegisteredGroups: () => Record<string, RegisteredGroup>;
   clearGroupSession: (folder: string) => { ok: boolean; error?: string };
   restartGroupContainer: (folder: string) => { ok: boolean; error?: string };

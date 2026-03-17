@@ -1,25 +1,30 @@
 import { useEffect, useState } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import GroupsPanel from './GroupsPanel';
+
+interface LastError {
+  message: string;
+  timestamp: string;
+}
 
 interface Stats {
   channelsConnected: number;
   activeContainers: number;
   ipcQueueDepth: number;
   todosDueToday: number;
-  lastError: string | null;
-}
-
-interface Group {
-  jid: string;
-  name: string;
-  folder: string;
-  isMain: boolean;
-  requiresTrigger: boolean;
+  lastError: LastError | null;
 }
 
 interface ChannelStatus {
   name: string;
   connected: boolean;
 }
+
+interface FiveHour { utilization: number; resets_at: string }
+interface SevenDay { utilization: number; resets_at: string }
+interface ExtraUsage { is_enabled: boolean; monthly_limit: number; used_credits: number; utilization: number }
+interface UsageData { five_hour: FiveHour | null; seven_day: SevenDay | null; extra_usage: ExtraUsage | null }
+interface UsageResponse { data: UsageData | null; error: string | null }
 
 function usePoll<T>(url: string, intervalMs: number) {
   const [data, setData] = useState<T | null>(null);
@@ -38,149 +43,161 @@ function usePoll<T>(url: string, intervalMs: number) {
     };
     fetchData();
     const id = setInterval(fetchData, intervalMs);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
+    return () => { cancelled = true; clearInterval(id); };
   }, [url, intervalMs]);
   return { data, error };
 }
 
-interface StatCardProps {
-  label: string;
-  value: string | number | null;
-  isError?: boolean;
-  fullWidth?: boolean;
+function StatCard({ label, value }: { label: string; value: string | number | null }) {
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+      <div className="text-gray-400 text-sm mb-1">{label}</div>
+      <div className="text-2xl font-semibold text-gray-100">{value ?? '—'}</div>
+    </div>
+  );
 }
 
-function StatCard({ label, value, isError, fullWidth }: StatCardProps) {
+function LastErrorCard({ error }: { error: LastError | null }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (!error) {
+    return (
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 col-span-2">
+        <div className="text-gray-400 text-sm mb-1">Last Error</div>
+        <div className="text-gray-500 text-lg">None</div>
+      </div>
+    );
+  }
+
+  // Try to infer a rough "time ago" from HH:MM:SS timestamp
+  function relativeTime(ts: string): string {
+    try {
+      const now = new Date();
+      const [h, m] = ts.split(':').map(Number);
+      const errDate = new Date(now);
+      errDate.setHours(h, m, 0, 0);
+      // Handle midnight crossover
+      if (errDate > now) errDate.setDate(errDate.getDate() - 1);
+      const diffMin = Math.floor((now.getTime() - errDate.getTime()) / 60000);
+      if (diffMin < 1) return 'just now';
+      if (diffMin < 60) return `${diffMin}m ago`;
+      return `${Math.floor(diffMin / 60)}h ago`;
+    } catch {
+      return ts;
+    }
+  }
+
   return (
-    <div
-      className={`bg-gray-900 border border-gray-800 rounded-lg p-4 ${fullWidth ? 'col-span-2' : ''}`}
-    >
-      <div className="text-gray-400 text-sm mb-1">{label}</div>
-      <div
-        className={`text-2xl font-semibold ${
-          isError && value !== null
-            ? 'text-red-400'
-            : isError && value === null
-              ? 'text-gray-500'
-              : 'text-gray-100'
-        }`}
-      >
-        {isError ? (value ?? 'None') : (value ?? '—')}
+    <div className="bg-gray-900 border border-red-900/60 rounded-lg p-4 col-span-2">
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-red-400 text-sm font-medium">
+          Last Error: {relativeTime(error.timestamp)}
+          <span className="text-gray-500 text-xs ml-2">({error.timestamp})</span>
+        </div>
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="text-gray-500 hover:text-gray-300 transition-colors"
+          aria-label={expanded ? 'Collapse' : 'Expand'}
+        >
+          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </button>
+      </div>
+      <div className={`text-red-300 text-sm font-mono ${expanded ? '' : 'truncate'}`}>
+        {error.message}
       </div>
     </div>
   );
 }
 
-export default function OverviewPanel() {
-  const { data: stats, error: statsError } = usePoll<Stats>(
-    '/api/stats',
-    10000,
+function formatReset(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      weekday: 'short', month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+    });
+  } catch { return iso; }
+}
+
+function ProgressBar({ pct }: { pct: number }) {
+  const clamped = Math.min(100, Math.max(0, pct));
+  const color = clamped >= 90 ? 'bg-red-500' : clamped >= 60 ? 'bg-yellow-500' : 'bg-green-500';
+  return (
+    <div className="w-full bg-gray-800 rounded-full h-1.5 mt-1.5">
+      <div className={`${color} h-1.5 rounded-full transition-all`} style={{ width: `${clamped}%` }} />
+    </div>
   );
-  const { data: groups, error: groupsError } = usePoll<Group[]>(
-    '/api/groups',
-    10000,
-  );
-  const { data: channels, error: channelsError } = usePoll<ChannelStatus[]>(
-    '/api/channels',
-    10000,
-  );
+}
+
+interface OverviewProps {
+  onNavigateToMessages?: (jid: string) => void;
+}
+
+export default function OverviewPanel({ onNavigateToMessages }: OverviewProps) {
+  const { data: stats, error: statsError } = usePoll<Stats>('/api/stats', 10000);
+  const { data: channels, error: channelsError } = usePoll<ChannelStatus[]>('/api/channels', 10000);
+  const { data: usage } = usePoll<UsageResponse>('/api/usage', 60000);
+
+  const usageData = usage?.data;
 
   return (
     <div className="space-y-8">
-      {/* Stats section */}
+      {/* Stats */}
       <section>
         <h2 className="text-base font-semibold text-gray-300 mb-3">Status</h2>
         {statsError ? (
           <p className="text-red-400 text-sm">{statsError}</p>
         ) : (
           <div className="grid grid-cols-2 gap-4">
-            <StatCard
-              label="Channels Connected"
-              value={stats?.channelsConnected ?? null}
-            />
-            <StatCard
-              label="Active Containers"
-              value={stats?.activeContainers ?? null}
-            />
-            <StatCard
-              label="IPC Queue Depth"
-              value={stats?.ipcQueueDepth ?? null}
-            />
-            <StatCard
-              label="Todos Due Today"
-              value={stats?.todosDueToday ?? null}
-            />
-            <StatCard
-              label="Last Error"
-              value={stats ? (stats.lastError ?? null) : null}
-              isError
-              fullWidth
-            />
+            <StatCard label="Channels Connected" value={stats?.channelsConnected ?? null} />
+            <StatCard label="Active Containers" value={stats?.activeContainers ?? null} />
+            <StatCard label="IPC Queue Depth" value={stats?.ipcQueueDepth ?? null} />
+            <StatCard label="Todos Due Today" value={stats?.todosDueToday ?? null} />
+            <LastErrorCard error={stats?.lastError ?? null} />
           </div>
         )}
       </section>
 
-      {/* Groups section */}
-      <section>
-        <h2 className="text-base font-semibold text-gray-300 mb-3">Groups</h2>
-        {groupsError ? (
-          <p className="text-red-400 text-sm">{groupsError}</p>
-        ) : (
-          <div className="bg-gray-900 rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-800 text-gray-400 text-left">
-                  <th className="px-4 py-3 font-medium">Name</th>
-                  <th className="px-4 py-3 font-medium">JID</th>
-                  <th className="px-4 py-3 font-medium">Folder</th>
-                  <th className="px-4 py-3 font-medium">Main</th>
-                  <th className="px-4 py-3 font-medium">Trigger</th>
-                </tr>
-              </thead>
-              <tbody>
-                {!groups || groups.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="px-4 py-3 text-gray-500 text-sm"
-                    >
-                      No groups registered
-                    </td>
-                  </tr>
-                ) : (
-                  groups.map((g) => (
-                    <tr
-                      key={g.jid}
-                      className="border-b border-gray-800 last:border-0 hover:bg-gray-800/50"
-                    >
-                      <td className="px-4 py-3 text-gray-100">{g.name}</td>
-                      <td className="px-4 py-3 text-gray-400 font-mono text-xs">
-                        {g.jid}
-                      </td>
-                      <td className="px-4 py-3 text-gray-300">{g.folder}</td>
-                      <td className="px-4 py-3 text-gray-300">
-                        {g.isMain ? 'Yes' : 'No'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-300">
-                        {g.requiresTrigger ? 'Yes' : 'No'}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+      {/* Usage */}
+      {usageData && (usageData.five_hour || usageData.seven_day) && (
+        <section>
+          <h2 className="text-base font-semibold text-gray-300 mb-3">Claude Usage</h2>
+          <div className="grid grid-cols-2 gap-4">
+            {usageData.five_hour && (
+              <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-gray-400 text-sm">Current session</span>
+                  <span className="text-gray-100 font-mono text-sm font-semibold">
+                    {Math.round(usageData.five_hour.utilization)}%
+                  </span>
+                </div>
+                <ProgressBar pct={usageData.five_hour.utilization} />
+                <p className="text-gray-500 text-xs mt-1.5">Resets {formatReset(usageData.five_hour.resets_at)}</p>
+              </div>
+            )}
+            {usageData.seven_day && (
+              <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-gray-400 text-sm">Current week</span>
+                  <span className="text-gray-100 font-mono text-sm font-semibold">
+                    {Math.round(usageData.seven_day.utilization)}%
+                  </span>
+                </div>
+                <ProgressBar pct={usageData.seven_day.utilization} />
+                <p className="text-gray-500 text-xs mt-1.5">Resets {formatReset(usageData.seven_day.resets_at)}</p>
+              </div>
+            )}
           </div>
-        )}
+        </section>
+      )}
+
+      {/* Groups + Containers */}
+      <section>
+        <GroupsPanel onNavigateToMessages={onNavigateToMessages} />
       </section>
 
-      {/* Channels section */}
+      {/* Channels */}
       <section>
-        <h2 className="text-base font-semibold text-gray-300 mb-3">
-          Channels
-        </h2>
+        <h2 className="text-base font-semibold text-gray-300 mb-3">Channels</h2>
         {channelsError ? (
           <p className="text-red-400 text-sm">{channelsError}</p>
         ) : (
@@ -194,33 +211,15 @@ export default function OverviewPanel() {
               </thead>
               <tbody>
                 {!channels || channels.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={2}
-                      className="px-4 py-3 text-gray-500 text-sm"
-                    >
-                      No channels
-                    </td>
-                  </tr>
+                  <tr><td colSpan={2} className="px-4 py-3 text-gray-500 text-sm">No channels</td></tr>
                 ) : (
                   channels.map((ch) => (
-                    <tr
-                      key={ch.name}
-                      className="border-b border-gray-800 last:border-0 hover:bg-gray-800/50"
-                    >
-                      <td className="px-4 py-3 text-gray-100 capitalize">
-                        {ch.name}
-                      </td>
+                    <tr key={ch.name} className="border-b border-gray-800 last:border-0 hover:bg-gray-800/50">
+                      <td className="px-4 py-3 text-gray-100 capitalize">{ch.name}</td>
                       <td className="px-4 py-3">
                         <span className="flex items-center gap-2">
-                          <span
-                            className={`w-2 h-2 rounded-full ${ch.connected ? 'bg-green-500' : 'bg-red-500'}`}
-                          />
-                          <span
-                            className={
-                              ch.connected ? 'text-green-400' : 'text-red-400'
-                            }
-                          >
+                          <span className={`w-2 h-2 rounded-full ${ch.connected ? 'bg-green-500' : 'bg-red-500'}`} />
+                          <span className={ch.connected ? 'text-green-400' : 'text-red-400'}>
                             {ch.connected ? 'Connected' : 'Disconnected'}
                           </span>
                         </span>

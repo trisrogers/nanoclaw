@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
 interface ScheduledTask {
@@ -119,22 +119,22 @@ function RunLogsRow({
         const content = log.status === 'success' ? log.result : log.error;
         return (
           <tr key={i} className="bg-gray-950 border-b border-gray-800 last:border-0">
-            <td className="px-8 py-1.5 text-gray-500 text-xs" />
+            <td className="px-4 py-1.5" />
             <td className="px-4 py-1.5 text-gray-400 text-xs font-mono">
               {formatDate(log.run_at)}
+            </td>
+            <td
+              className="px-4 py-1.5 text-gray-400 text-xs truncate cursor-default"
+              title={content ?? undefined}
+              colSpan={3}
+            >
+              {truncate(content, 120)}
             </td>
             <td className="px-4 py-1.5 text-gray-400 text-xs">
               {formatDuration(log.duration_ms)}
             </td>
             <td className="px-4 py-1.5">
               <RunStatusBadge status={log.status} />
-            </td>
-            <td
-              className="px-4 py-1.5 text-gray-400 text-xs max-w-xs truncate cursor-default"
-              title={content ?? undefined}
-              colSpan={2}
-            >
-              {truncate(content, 100)}
             </td>
           </tr>
         );
@@ -179,14 +179,28 @@ export default function TasksPanel() {
     return <p className="text-gray-500 text-sm">Loading...</p>;
   }
 
-  return (
-    <div className="space-y-4">
-      <h2 className="text-base font-semibold text-gray-300">Scheduled Tasks</h2>
+  const STATUS_ORDER: Array<'active' | 'paused' | 'completed'> = ['active', 'paused', 'completed'];
+  const grouped = STATUS_ORDER.map((s) => ({
+    status: s,
+    items: tasks.filter((t) => t.status === s),
+  })).filter((g) => g.items.length > 0);
+
+  function renderTable(items: ScheduledTask[]) {
+    return (
       <div className="bg-gray-900 rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-fixed">
+          <colgroup>
+            <col className="w-8" />
+            <col className="w-32" />
+            <col />
+            <col className="w-36" />
+            <col className="w-36" />
+            <col className="w-36" />
+            <col className="w-24" />
+          </colgroup>
           <thead>
             <tr className="border-b border-gray-800 text-gray-400 text-left">
-              <th className="px-4 py-3 font-medium w-8" />
+              <th className="px-4 py-3 font-medium" />
               <th className="px-4 py-3 font-medium">Group</th>
               <th className="px-4 py-3 font-medium">Prompt</th>
               <th className="px-4 py-3 font-medium">Schedule</th>
@@ -196,59 +210,59 @@ export default function TasksPanel() {
             </tr>
           </thead>
           <tbody>
-            {tasks.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-3 text-gray-500 text-sm">
-                  No scheduled tasks configured.
-                </td>
-              </tr>
-            ) : (
-              tasks.map((task) => {
-                const isExpanded = expanded.has(task.id);
-                return (
-                  <>
-                    <tr
-                      key={task.id}
-                      className="border-b border-gray-800 last:border-0 hover:bg-gray-800/50 cursor-pointer"
-                      onClick={() => toggleRow(task.id)}
-                    >
-                      <td className="px-4 py-3 text-gray-500">
-                        {isExpanded ? (
-                          <ChevronDown size={14} />
-                        ) : (
-                          <ChevronRight size={14} />
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-gray-100">{task.group_folder}</td>
-                      <td className="px-4 py-3 text-gray-300 max-w-xs">{task.prompt}</td>
-                      <td className="px-4 py-3 text-gray-400 font-mono text-xs">
-                        {task.schedule_type} {task.schedule_value}
-                      </td>
-                      <td className="px-4 py-3 text-gray-400 text-xs">
-                        {formatDate(task.last_run)}
-                      </td>
-                      <td className="px-4 py-3 text-gray-400 text-xs">
-                        {formatDate(task.next_run)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={task.status} />
-                      </td>
-                    </tr>
-                    {isExpanded && (
-                      <RunLogsRow
-                        key={`${task.id}-runs`}
-                        taskId={task.id}
-                        runsCache={runsCache}
-                        setRunsCache={setRunsCache}
-                      />
-                    )}
-                  </>
-                );
-              })
-            )}
+            {items.map((task) => {
+              const isExpanded = expanded.has(task.id);
+              return (
+                <React.Fragment key={task.id}>
+                  <tr
+                    className="border-b border-gray-800 last:border-0 hover:bg-gray-800/50 cursor-pointer"
+                    onClick={() => toggleRow(task.id)}
+                  >
+                    <td className="px-4 py-3 text-gray-500">
+                      {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    </td>
+                    <td className="px-4 py-3 text-gray-100">{task.group_folder}</td>
+                    <td className="px-4 py-3 text-gray-300 truncate">{task.prompt}</td>
+                    <td className="px-4 py-3 text-gray-400 font-mono text-xs">
+                      {task.schedule_type} {task.schedule_value}
+                    </td>
+                    <td className="px-4 py-3 text-gray-400 text-xs">{formatDate(task.last_run)}</td>
+                    <td className="px-4 py-3 text-gray-400 text-xs">{formatDate(task.next_run)}</td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={task.status} />
+                    </td>
+                  </tr>
+                  {isExpanded && (
+                    <RunLogsRow
+                      taskId={task.id}
+                      runsCache={runsCache}
+                      setRunsCache={setRunsCache}
+                    />
+                  )}
+                </React.Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-base font-semibold text-gray-300">Scheduled Tasks</h2>
+      {tasks.length === 0 ? (
+        <p className="text-gray-500 text-sm">No scheduled tasks configured.</p>
+      ) : (
+        grouped.map((group) => (
+          <div key={group.status} className="space-y-2">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-1">
+              {group.status}
+            </h3>
+            {renderTable(group.items)}
+          </div>
+        ))
+      )}
     </div>
   );
 }

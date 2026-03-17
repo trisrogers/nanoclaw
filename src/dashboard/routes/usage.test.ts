@@ -26,7 +26,11 @@ async function callUsageHandler(router: ReturnType<typeof usageRouter>) {
   );
   expect(layer).toBeDefined();
   let jsonResponse: any;
-  const res = { json: vi.fn((val: any) => { jsonResponse = val; }) } as any;
+  const res = {
+    json: vi.fn((val: any) => {
+      jsonResponse = val;
+    }),
+  } as any;
   await layer.route.stack[0].handle({} as any, res, vi.fn());
   return jsonResponse;
 }

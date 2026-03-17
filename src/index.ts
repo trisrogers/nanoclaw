@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { randomUUID } from 'crypto';
 
 import {
   ASSISTANT_NAME,
@@ -246,6 +247,16 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
         );
         if (text) {
           await channel.sendMessage(chatJid, text);
+          storeMessage({
+            id: randomUUID(),
+            chat_jid: chatJid,
+            sender: ASSISTANT_NAME.toLowerCase(),
+            sender_name: ASSISTANT_NAME,
+            content: text,
+            timestamp: new Date().toISOString(),
+            is_from_me: false,
+            is_bot_message: true,
+          });
           outputSentToUser = true;
         }
         // Only reset idle timer on actual results, not session-update markers (result: null)
@@ -555,7 +566,8 @@ async function main(): Promise<void> {
     },
     getLastError: () => {
       const ANSI = /\x1B\[[0-9;]*m/g;
-      const HEADER = /^\[[\d:.]+\]\s+(ERROR|FATAL|WARN)\s+\(\d+\):\s+(.*)/i;
+      const HEADER =
+        /^\[(\d{2}:\d{2}:\d{2}\.\d{3})\]\s+(ERROR|FATAL)\s+\(\d+\):\s+(.*)/i;
       try {
         const content = fs.readFileSync(
           path.join(process.cwd(), 'logs', 'nanoclaw.log'),
@@ -565,11 +577,8 @@ async function main(): Promise<void> {
         for (let i = lines.length - 1; i >= 0; i--) {
           const clean = lines[i].replace(ANSI, '');
           const m = clean.match(HEADER);
-          if (
-            m &&
-            (m[1].toUpperCase() === 'ERROR' || m[1].toUpperCase() === 'FATAL')
-          ) {
-            return m[2].slice(0, 200);
+          if (m) {
+            return { message: m[3], timestamp: m[1] };
           }
         }
       } catch {
