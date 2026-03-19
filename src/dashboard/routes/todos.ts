@@ -1,7 +1,12 @@
 import { Router } from 'express';
 import express from 'express';
 
-import { listTodos, listProjects, completeTodo, updateTodo } from '../../todo.js';
+import {
+  listTodos,
+  listProjects,
+  completeTodo,
+  updateTodo,
+} from '../../todo.js';
 
 export function todosRouter(): Router {
   const router = Router();
@@ -18,7 +23,9 @@ export function todosRouter(): Router {
     const { id } = req.params;
     const { status } = req.body as { status?: string };
     if (!status || !['open', 'done', 'cancelled'].includes(status)) {
-      res.status(400).json({ error: 'status must be open, done, or cancelled' });
+      res
+        .status(400)
+        .json({ error: 'status must be open, done, or cancelled' });
       return;
     }
     try {
