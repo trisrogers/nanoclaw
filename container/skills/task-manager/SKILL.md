@@ -25,7 +25,7 @@ The snapshot contains `items` (open tasks) and `projects`.
 
 | Field | Values |
 |---|---|
-| `assignee` | `tristan` or `deltron` |
+| `assignee` | `Tristan` or `Deltron` |
 | `status` | `open`, `done`, `cancelled` |
 | `priority` | `low`, `medium`, `high` (optional) |
 | `due_date` | `YYYY-MM-DD` (optional) |
@@ -60,7 +60,7 @@ cat > /workspace/ipc/tasks/todo-$(date +%s%N).json << 'EOF'
   "type": "todo_create_subtask",
   "parentTaskId": "PFR-002",
   "title": "Profile slow queries",
-  "assignee": "deltron"
+  "assignee": "Deltron"
 }
 EOF
 ```
