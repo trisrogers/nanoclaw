@@ -4,7 +4,7 @@ import path from 'path';
 
 import { Router } from 'express';
 
-const CACHE_TTL_MS = 60_000;
+const CACHE_TTL_MS = 5 * 60_000; // 5 minutes — avoids hitting the oauth/usage rate limit
 const CREDENTIALS_PATH = path.join(homedir(), '.claude', '.credentials.json');
 const USAGE_API = 'https://api.anthropic.com/api/oauth/usage';
 

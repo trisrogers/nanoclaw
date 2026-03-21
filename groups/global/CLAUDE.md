@@ -109,6 +109,8 @@ Formatting rules:
 
 For full task management docs, see the `task-manager` skill.
 
+**Important — dual-write rule:** When you mark a task done in Notion (via MCP), you MUST also complete it locally via the IPC `todo_complete` action or by writing a `todo_complete` IPC file. Both systems must stay in sync. Notion-only completions will be caught by the background sync within 5 minutes, but doing both immediately prevents stale reminders from firing.
+
 ## Message Formatting
 
 NEVER use markdown. Only use WhatsApp/Telegram formatting:
@@ -118,6 +120,22 @@ NEVER use markdown. Only use WhatsApp/Telegram formatting:
 - ```triple backticks``` for code
 
 No ## headings. No [links](url). No **double stars**.
+
+## Email
+
+When you receive a `[New Email]` alert with sender, subject, and Message-ID:
+- To read the full message, use `mcp__gmail__get_email` with the message ID
+- After reading: mark the sender as important (to auto-fetch full email in future) or ignore (to skip silently)
+- Mark as important: write IPC task `{ type: 'email_importance_rule', senderEmail: 'exact@email.com', importance: 'important' }`
+- Mark as ignore: write IPC task `{ type: 'email_importance_rule', senderEmail: 'exact@email.com', importance: 'ignore' }`
+
+When you receive a `[Important Email]` — it already contains the full body. Summarise key points and alert the user.
+
+When asked to draft a reply:
+1. Draft the text based on the user's guidance
+2. Use `mcp__gmail__create_draft` to save it to Gmail
+3. Report back: *"Draft created"* with a preview of the first line
+4. If the user asks for changes: read and update the draft using Gmail MCP tools
 
 ## Agent Teams
 

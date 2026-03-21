@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 
-interface Group {
-  jid: string;
-  name: string;
-  folder: string;
+interface FileEntry {
+  label: string;
+  path: string;
+  category: string;
 }
 
-/** Exported so App.tsx can guard in-app navigation (wired in Plan 05) */
+/** Exported so App.tsx can guard in-app navigation */
 export const memoryIsDirtyRef = { current: false };
 
 export default function MemoryPanel() {
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [selectedGroup, setSelectedGroup] = useState<string>('global');
+  const [files, setFiles] = useState<FileEntry[]>([]);
+  const [selectedPath, setSelectedPath] = useState<string>('CLAUDE.md');
   const [content, setContent] = useState<string>('');
   const [savedContent, setSavedContent] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
@@ -20,7 +20,7 @@ export default function MemoryPanel() {
 
   const isDirty = content !== savedContent;
 
-  // Keep ref in sync for Plan 05 App.tsx wiring
+  // Keep ref in sync for App.tsx wiring
   useEffect(() => {
     memoryIsDirtyRef.current = isDirty;
   }, [isDirty]);
@@ -37,26 +37,23 @@ export default function MemoryPanel() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
-  // Fetch group list on mount
+  // Fetch file list on mount
   useEffect(() => {
-    fetch('/api/groups')
+    fetch('/api/files')
       .then((r) => r.json())
-      .then((data: Group[]) => setGroups(data))
-      .catch(() => {
-        /* non-fatal — selector still shows global */
-      });
+      .then((data: FileEntry[]) => setFiles(data))
+      .catch(() => {});
   }, []);
 
-  // Load content whenever selectedGroup changes
-  const loadGroupContent = (group: string) => {
+  const loadFileContent = (relPath: string) => {
     setLoading(true);
     setError(null);
-    fetch(`/api/memory/${encodeURIComponent(group)}`)
+    fetch(`/api/files/content?path=${encodeURIComponent(relPath)}`)
       .then((r) => {
         if (!r.ok) throw new Error(`${r.status}`);
         return r.json();
       })
-      .then((data: { group: string; content: string }) => {
+      .then((data: { path: string; content: string }) => {
         setContent(data.content);
         setSavedContent(data.content);
       })
@@ -64,26 +61,26 @@ export default function MemoryPanel() {
       .finally(() => setLoading(false));
   };
 
-  // Load global on mount
+  // Load default file on mount
   const hasMounted = useRef(false);
   useEffect(() => {
     if (!hasMounted.current) {
       hasMounted.current = true;
-      loadGroupContent('global');
+      loadFileContent(selectedPath);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleGroupChange = (newGroup: string) => {
+  const handleFileChange = (newPath: string) => {
     if (isDirty) {
       if (!window.confirm('You have unsaved changes. Leave anyway?')) return;
     }
-    setSelectedGroup(newGroup);
-    loadGroupContent(newGroup);
+    setSelectedPath(newPath);
+    loadFileContent(newPath);
   };
 
   const handleSave = () => {
     setSaveError(null);
-    fetch(`/api/memory/${encodeURIComponent(selectedGroup)}`, {
+    fetch(`/api/files/content?path=${encodeURIComponent(selectedPath)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content }),
@@ -98,28 +95,37 @@ export default function MemoryPanel() {
       .catch((e) => setSaveError(String(e)));
   };
 
+  // Group files by category for the dropdown
+  const byCategory: Record<string, FileEntry[]> = {};
+  for (const f of files) {
+    if (!byCategory[f.category]) byCategory[f.category] = [];
+    byCategory[f.category].push(f);
+  }
+
   return (
     <div className="flex flex-col h-full gap-3">
-      {/* Group selector row */}
+      {/* File selector row */}
       <div className="flex items-center gap-3">
         <label className="text-gray-400 text-sm shrink-0">File:</label>
         <select
-          value={selectedGroup}
-          onChange={(e) => handleGroupChange(e.target.value)}
+          value={selectedPath}
+          onChange={(e) => handleFileChange(e.target.value)}
           className="bg-gray-800 border border-gray-700 text-gray-100 text-sm rounded px-3 py-1.5 focus:outline-none focus:border-blue-500"
         >
-          <option value="global">global</option>
-          {groups.map((g) => (
-            <option key={g.jid} value={g.folder}>
-              {g.folder}
-            </option>
+          {Object.entries(byCategory).map(([category, entries]) => (
+            <optgroup key={category} label={category}>
+              {entries.map((f) => (
+                <option key={f.path} value={f.path}>{f.label}</option>
+              ))}
+            </optgroup>
           ))}
+          {/* Fallback if files haven't loaded yet */}
+          {files.length === 0 && (
+            <option value="CLAUDE.md">CLAUDE.md</option>
+          )}
         </select>
         {isDirty && (
-          <span
-            className="w-2 h-2 rounded-full bg-yellow-400 shrink-0"
-            title="Unsaved changes"
-          />
+          <span className="w-2 h-2 rounded-full bg-yellow-400 shrink-0" title="Unsaved changes" />
         )}
       </div>
 
@@ -135,7 +141,7 @@ export default function MemoryPanel() {
         value={content}
         onChange={(e) => setContent(e.target.value)}
         disabled={loading}
-        placeholder={loading ? 'Loading…' : 'No CLAUDE.md content yet. Start typing to create one.'}
+        placeholder={loading ? 'Loading…' : 'File is empty. Start typing to create content.'}
         className="flex-1 w-full bg-gray-900 border border-gray-800 text-gray-100 font-mono text-sm rounded p-3 resize-none focus:outline-none focus:border-blue-500 disabled:opacity-50"
       />
 

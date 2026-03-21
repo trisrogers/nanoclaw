@@ -26,6 +26,7 @@ import {
   getDeltronReminders,
   formatReminderMessage,
   markReminderSent,
+  syncNotionStatuses,
   type TodoItem,
 } from './todo.js';
 
@@ -286,6 +287,10 @@ async function runDeltronReminder(
 
 let schedulerRunning = false;
 
+// Sync Notion statuses every 5 minutes (every 5 ticks at 60s poll interval)
+const NOTION_SYNC_INTERVAL_TICKS = 5;
+let notionSyncTick = 0;
+
 export function startSchedulerLoop(deps: SchedulerDependencies): void {
   if (schedulerRunning) {
     logger.debug('Scheduler loop already running, skipping duplicate start');
@@ -295,6 +300,16 @@ export function startSchedulerLoop(deps: SchedulerDependencies): void {
   logger.info('Scheduler loop started');
 
   const loop = async () => {
+    // Sync Notion task statuses every 5 minutes to catch completions done there
+    if (notionSyncTick % NOTION_SYNC_INTERVAL_TICKS === 0) {
+      try {
+        await syncNotionStatuses();
+      } catch (err) {
+        logger.error({ err }, 'Error in Notion status sync');
+      }
+    }
+    notionSyncTick++;
+
     try {
       // Send todo reminders for tasks assigned to tristan due today (9am trigger)
       const reminders = getDueReminders();

@@ -16,6 +16,7 @@ import { request as httpRequest, RequestOptions } from 'http';
 
 import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
+import { logTokenUsage } from './db.js';
 
 export type AuthMode = 'api-key' | 'oauth';
 
@@ -79,6 +80,10 @@ export function startCredentialProxy(
           }
         }
 
+        const groupFolder = req.headers['x-nanoclaw-group'] as
+          | string
+          | undefined;
+
         const upstream = makeRequest(
           {
             hostname: upstreamUrl.hostname,
@@ -89,7 +94,86 @@ export function startCredentialProxy(
           } as RequestOptions,
           (upRes) => {
             res.writeHead(upRes.statusCode!, upRes.headers);
-            upRes.pipe(res);
+            const contentType = (upRes.headers['content-type'] as string) || '';
+            const isStream = contentType.includes('text/event-stream');
+            const chunks: Buffer[] = [];
+
+            upRes.on('data', (chunk: Buffer) => {
+              chunks.push(chunk);
+              res.write(chunk);
+            });
+
+            upRes.on('end', () => {
+              res.end();
+              // Non-blocking token usage extraction
+              setImmediate(() => {
+                try {
+                  const body = Buffer.concat(chunks).toString('utf-8');
+                  let inputTokens: number | undefined;
+                  let outputTokens: number | undefined;
+                  let cacheRead: number | undefined;
+                  let cacheWrite: number | undefined;
+                  let model: string | undefined;
+
+                  if (isStream) {
+                    // SSE: scan for usage events
+                    for (const line of body.split('\n')) {
+                      if (!line.startsWith('data: ')) continue;
+                      try {
+                        const event = JSON.parse(line.slice(6)) as Record<
+                          string,
+                          unknown
+                        >;
+                        if (event.type === 'message_start') {
+                          const msg = event.message as
+                            | Record<string, unknown>
+                            | undefined;
+                          if (msg?.model) model = String(msg.model);
+                          const u = msg?.usage as
+                            | Record<string, number>
+                            | undefined;
+                          if (u) {
+                            inputTokens = u.input_tokens;
+                            cacheRead = u.cache_read_input_tokens;
+                            cacheWrite = u.cache_write_input_tokens;
+                          }
+                        } else if (event.type === 'message_delta') {
+                          const u = event.usage as
+                            | Record<string, number>
+                            | undefined;
+                          if (u) outputTokens = u.output_tokens;
+                        }
+                      } catch {
+                        /* skip non-JSON SSE lines */
+                      }
+                    }
+                  } else {
+                    const json = JSON.parse(body) as Record<string, unknown>;
+                    const u = json.usage as Record<string, number> | undefined;
+                    if (u?.input_tokens !== undefined) {
+                      inputTokens = u.input_tokens;
+                      outputTokens = u.output_tokens;
+                      cacheRead = u.cache_read_input_tokens;
+                      cacheWrite = u.cache_write_input_tokens;
+                      model = json.model as string | undefined;
+                    }
+                  }
+
+                  if (inputTokens !== undefined) {
+                    logTokenUsage({
+                      group_folder: groupFolder ?? null,
+                      model: model ?? null,
+                      input_tokens: inputTokens,
+                      output_tokens: outputTokens ?? 0,
+                      cache_read_tokens: cacheRead ?? 0,
+                      cache_write_tokens: cacheWrite ?? 0,
+                    });
+                  }
+                } catch {
+                  /* ignore parse errors */
+                }
+              });
+            });
           },
         );
 

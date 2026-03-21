@@ -377,6 +377,88 @@ export function markReminderSent(taskId: string): void {
     .run(taskId);
 }
 
+// ---- Notion sync ----
+
+const NOTION_DONE_NAMES = new Set([
+  'done',
+  'complete',
+  'completed',
+  'closed',
+  'finished',
+]);
+
+function isNotionPageDone(props: Record<string, unknown>): boolean {
+  for (const prop of Object.values(props)) {
+    const p = prop as Record<string, unknown>;
+    if (p.type === 'status' && p.status) {
+      const name = (p.status as { name: string }).name?.toLowerCase();
+      if (NOTION_DONE_NAMES.has(name)) return true;
+    }
+    if (p.type === 'checkbox' && p.checkbox === true) return true;
+    if (p.type === 'select' && p.select) {
+      const name = (p.select as { name: string }).name?.toLowerCase();
+      if (NOTION_DONE_NAMES.has(name)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Pull completion status from Notion for any open todos that have a notion_id.
+ * Marks them done locally if Notion shows them as complete/archived.
+ * Call periodically from the scheduler to keep the two systems in sync.
+ */
+export async function syncNotionStatuses(): Promise<void> {
+  const notionKey = process.env.NOTION_API_KEY;
+  if (!notionKey) return;
+
+  const items = getDb()
+    .prepare(
+      `SELECT task_id, notion_id FROM todo_items
+       WHERE notion_id IS NOT NULL AND status = 'open'`,
+    )
+    .all() as { task_id: string; notion_id: string }[];
+
+  if (items.length === 0) return;
+
+  for (const item of items) {
+    try {
+      const res = await fetch(
+        `https://api.notion.com/v1/pages/${item.notion_id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${notionKey}`,
+            'Notion-Version': '2022-06-28',
+          },
+        },
+      );
+      if (!res.ok) continue;
+
+      const page = (await res.json()) as Record<string, unknown>;
+
+      if (page.archived === true) {
+        completeTodo(item.task_id);
+        logger.info(
+          { taskId: item.task_id },
+          'Notion sync: marked done (archived)',
+        );
+        continue;
+      }
+
+      const props = page.properties as Record<string, unknown> | undefined;
+      if (props && isNotionPageDone(props)) {
+        completeTodo(item.task_id);
+        logger.info({ taskId: item.task_id }, 'Notion sync: marked done');
+      }
+    } catch (err) {
+      logger.warn(
+        { taskId: item.task_id, err },
+        'Notion sync: error fetching page',
+      );
+    }
+  }
+}
+
 /**
  * Write the open-tasks snapshot for a group's IPC directory.
  * Called before container runs AND after IPC mutations so the snapshot stays current.

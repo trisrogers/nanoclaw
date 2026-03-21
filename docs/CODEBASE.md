@@ -295,11 +295,26 @@ Runs as HTTP server on `PROXY_BIND_HOST:3001` (docker0 bridge address on Linux/W
 - Message length limit: 4096 chars (auto-splits)
 
 ### `src/channels/gmail.ts` — Gmail Channel
-- Polls Gmail API every 60s for unread primary-category emails
+- Polls Gmail API every 10 minutes (600s) for unread primary-category emails
+- **Two-phase fetch with importance filtering:**
+  - Phase 1: Fetch metadata only (sender, subject, Message-ID) for all new emails
+  - Phase 2: Check `email_importance_rules` table (in `store/messages.db`):
+    - `'ignore'` senders: skip silently
+    - `'important'` senders: fetch full email body and deliver with `[Important Email]` tag
+    - Unknown senders: deliver metadata-only alert; agent can fetch full email via `mcp__gmail__get_email`
 - Delivers emails as messages to the `isMain` group (not to a separate Gmail group)
 - Stores thread metadata (sender, subject, Message-ID) in memory for reply construction
 - Does **not** mark emails as read after processing (emails stay unread in inbox)
 - JID format for threads: `gmail:{threadId}` (used only for reply routing)
+- **Email importance learning:** Agent writes `email_importance_rule` IPC to save/update rules based on user feedback
+
+### `container/agent-runner/src/pinchtab-mcp.ts` — PinchTab MCP Server
+- Standalone MCP stdio server that wraps the PinchTab HTTP API (port 9867) for persistent-session browser automation
+- Exposes 15 tools: `health`, `instances`, `instance_start`, `instance_stop`, `tabs`, `navigate`, `snapshot`, `text`, `screenshot`, `pdf`, `action`, `actions`, `evaluate`, `cookies_get`, `stealth_status`
+- Active only when `PINCHTAB_URL` is set in env (defaults to `http://host.docker.internal:9867`)
+- Optional `PINCHTAB_TOKEN` for bearer-auth-protected instances
+- Started via `docker compose -f docker-compose.pinchtab.yml up -d` on the host; containers reach it via `host.docker.internal:9867`
+- Key advantage over `agent-browser`: **persistent auth profiles** — cookies/sessions survive container restarts
 
 ### `src/channels/registry.ts` — Channel Factory
 ```typescript
@@ -315,10 +330,14 @@ getRegisteredChannelNames()     // list all registered channels
 The only file that persists state between restarts. Contains all messages, group registrations, sessions, scheduled tasks, and todos.
 
 **Registered groups (current):**
-| JID | Name | Folder | isMain |
-|-----|------|--------|--------|
-| `tg:8514304397` | Tris | telegram_main | yes |
-| `dc:1480878847221039200` | Deltron #main | discord_main | yes (inactive — Discord disabled) |
+| JID | Name | Folder | isMain | requiresTrigger |
+|-----|------|--------|--------|-----------------|
+| `tg:8514304397` | Tris | telegram_main | yes | no |
+| `tg:-5146598802` | Ideas | telegram_ideas | no | no |
+| `tg:-5169833354` | Email Bot | telegram_email | no | no |
+| `dc:1480878847221039200` | Deltron #main | discord_main | yes (inactive — Discord disabled) | yes |
+
+**Gmail MCP gating:** `mcp__gmail__*` tools and the Gmail MCP server are only injected into containers where `groupFolder === 'telegram_email'`. All other agents cannot access Gmail. To delegate email tasks, agents write an IPC message to the email group's `chatJid`.
 
 ---
 
@@ -326,7 +345,7 @@ The only file that persists state between restarts. Contains all messages, group
 
 | Location | Purpose |
 |----------|---------|
-| `.env` | Host credentials: `CLAUDE_CODE_OAUTH_TOKEN`, `DISCORD_BOT_TOKEN`, `TELEGRAM_BOT_TOKEN`, `ASSISTANT_NAME`, `TELEGRAM_BOT_POOL` (optional) |
+| `.env` | Host credentials: `CLAUDE_CODE_OAUTH_TOKEN`, `DISCORD_BOT_TOKEN`, `TELEGRAM_BOT_TOKEN`, `ASSISTANT_NAME`, `TELEGRAM_BOT_POOL` (optional), `PINCHTAB_URL` (optional), `PINCHTAB_TOKEN` (optional) |
 | `data/env/env` | Container env file — must be kept in sync with `.env` via `cp .env data/env/env` |
 | `~/.gmail-mcp/` | Gmail OAuth keys and tokens |
 | `~/.config/nanoclaw/sender-allowlist.json` | Optional sender filtering config |

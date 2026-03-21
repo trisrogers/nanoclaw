@@ -61,7 +61,7 @@ npx tsx scripts/tasks.ts complete TSK-001
 npx tsx scripts/tasks.ts subtask PFR-002 "Profile DB layer" --assignee deltron
 ```
 
-Assignee `tristan` = Tristan's work, `deltron` = Deltron's work. Use `TSK` project for uncategorised tasks. Infer or create a 3-char project code when work clearly belongs to a project.
+Assignee `Tristan` = Tristan's work, `Deltron` = Deltron's work. Use `TSK` project for uncategorised tasks. Infer or create a 3-char project code when work clearly belongs to a project.
 
 ## Development
 
@@ -92,4 +92,21 @@ systemctl --user restart nanoclaw
 
 ## Container Build Cache
 
-The container buildkit caches the build context aggressively. `--no-cache` alone does NOT invalidate COPY steps — the builder's volume retains stale files. To force a truly clean rebuild, prune the builder then re-run `./container/build.sh`.
+The container buildkit caches the build context aggressively. `--no-cache` alone does NOT invalidate COPY steps — the builder's volume retains stale files. To force a truly clean rebuild, prune the builder then re-run:
+
+```bash
+docker builder prune -f
+docker build --no-cache -t nanoclaw-agent:latest ./container
+```
+
+**Symptom:** Source code change has no effect — container still crashes with the old error even after a rebuild. The entrypoint compiles TypeScript at container startup (`npx tsc --outDir /tmp/dist`), so the compiled `.js` in the image must be fresh.
+
+## Agent Runner: ESM and `__dirname`
+
+`container/agent-runner/src/index.ts` is an ES Module. `__dirname` is not a global in ESM — it must be declared at **module scope** using:
+
+```ts
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+```
+
+If this is declared inside a function (e.g. `main()`), any other function that references `__dirname` will throw `__dirname is not defined` at runtime. Keep it at the top of the file, outside all functions.

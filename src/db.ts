@@ -116,6 +116,25 @@ function createSchema(database: Database.Database): void {
       container_config TEXT,
       requires_trigger INTEGER DEFAULT 1
     );
+    CREATE TABLE IF NOT EXISTS email_importance_rules (
+      sender_email TEXT PRIMARY KEY,
+      importance TEXT NOT NULL DEFAULT 'unknown',
+      notes TEXT,
+      feedback_count INTEGER DEFAULT 1,
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS token_usage (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recorded_at TEXT NOT NULL,
+      group_folder TEXT,
+      model TEXT,
+      input_tokens INTEGER NOT NULL,
+      output_tokens INTEGER NOT NULL,
+      cache_read_tokens INTEGER DEFAULT 0,
+      cache_write_tokens INTEGER DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_token_usage_recorded_at ON token_usage(recorded_at);
   `);
 
   // Seed default TSK project
@@ -540,6 +559,10 @@ export function deleteTask(id: string): void {
   db.prepare('DELETE FROM scheduled_tasks WHERE id = ?').run(id);
 }
 
+export function deleteTodo(taskId: string): void {
+  db.prepare('DELETE FROM todo_items WHERE task_id = ?').run(taskId);
+}
+
 export function getDueTasks(): ScheduledTask[] {
   const now = new Date().toISOString();
   return db
@@ -737,6 +760,173 @@ export function getAllRegisteredGroups(): Record<string, RegisteredGroup> {
     };
   }
   return result;
+}
+
+// --- Email Importance Rules ---
+
+export interface EmailImportanceRule {
+  sender_email: string;
+  importance: string;
+  notes?: string;
+  feedback_count: number;
+  updated_at: string;
+}
+
+/**
+ * Get importance rule for a sender email.
+ */
+export function getEmailRule(
+  senderEmail: string,
+): { importance: string; notes?: string } | undefined {
+  const row = db
+    .prepare(
+      `SELECT importance, notes FROM email_importance_rules WHERE sender_email = ?`,
+    )
+    .get(senderEmail) as
+    | { importance: string; notes: string | null }
+    | undefined;
+  if (!row) return undefined;
+  return {
+    importance: row.importance,
+    notes: row.notes || undefined,
+  };
+}
+
+/**
+ * Get all email importance rules.
+ */
+export function getAllEmailRules(): EmailImportanceRule[] {
+  return db
+    .prepare(
+      `SELECT sender_email, importance, notes, feedback_count, updated_at FROM email_importance_rules`,
+    )
+    .all() as EmailImportanceRule[];
+}
+
+/**
+ * Create or update an email importance rule.
+ */
+export function upsertEmailRule(
+  senderEmail: string,
+  importance: string,
+  notes?: string,
+): void {
+  db.prepare(
+    `
+    INSERT INTO email_importance_rules (sender_email, importance, notes, feedback_count, updated_at)
+    VALUES (?, ?, ?, 1, datetime('now'))
+    ON CONFLICT(sender_email) DO UPDATE SET
+      importance = excluded.importance,
+      notes = excluded.notes,
+      feedback_count = feedback_count + 1,
+      updated_at = datetime('now')
+  `,
+  ).run(senderEmail, importance, notes || null);
+}
+
+// --- Token usage ---
+
+export interface TokenUsageRow {
+  group_folder?: string | null;
+  model?: string | null;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens?: number;
+  cache_write_tokens?: number;
+}
+
+export function logTokenUsage(row: TokenUsageRow): void {
+  try {
+    db.prepare(
+      `INSERT INTO token_usage (recorded_at, group_folder, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      new Date().toISOString(),
+      row.group_folder ?? null,
+      row.model ?? null,
+      row.input_tokens,
+      row.output_tokens,
+      row.cache_read_tokens ?? 0,
+      row.cache_write_tokens ?? 0,
+    );
+  } catch {
+    /* non-fatal */
+  }
+}
+
+export interface TokenUsageSummary {
+  today: {
+    input: number;
+    output: number;
+    cache_read: number;
+    cache_write: number;
+  };
+  seven_day: {
+    input: number;
+    output: number;
+    cache_read: number;
+    cache_write: number;
+  };
+  by_group: Array<{
+    group_folder: string | null;
+    input: number;
+    output: number;
+  }>;
+  by_model: Array<{ model: string | null; input: number; output: number }>;
+}
+
+export function getTokenUsageSummary(): TokenUsageSummary {
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const aggregate = (since: string) =>
+    db
+      .prepare(
+        `SELECT
+           COALESCE(SUM(input_tokens), 0) as input,
+           COALESCE(SUM(output_tokens), 0) as output,
+           COALESCE(SUM(cache_read_tokens), 0) as cache_read,
+           COALESCE(SUM(cache_write_tokens), 0) as cache_write
+         FROM token_usage WHERE recorded_at >= ?`,
+      )
+      .get(since) as {
+      input: number;
+      output: number;
+      cache_read: number;
+      cache_write: number;
+    };
+
+  const by_group = db
+    .prepare(
+      `SELECT group_folder, SUM(input_tokens) as input, SUM(output_tokens) as output
+       FROM token_usage WHERE recorded_at >= ?
+       GROUP BY group_folder ORDER BY input DESC`,
+    )
+    .all(sevenDaysAgo.toISOString()) as Array<{
+    group_folder: string | null;
+    input: number;
+    output: number;
+  }>;
+
+  const by_model = db
+    .prepare(
+      `SELECT model, SUM(input_tokens) as input, SUM(output_tokens) as output
+       FROM token_usage WHERE recorded_at >= ?
+       GROUP BY model ORDER BY input DESC`,
+    )
+    .all(sevenDaysAgo.toISOString()) as Array<{
+    model: string | null;
+    input: number;
+    output: number;
+  }>;
+
+  return {
+    today: aggregate(todayStart.toISOString()),
+    seven_day: aggregate(sevenDaysAgo.toISOString()),
+    by_group,
+    by_model,
+  };
 }
 
 // --- JSON migration ---

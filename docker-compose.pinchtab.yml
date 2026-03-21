@@ -1,0 +1,17 @@
+services:
+  pinchtab:
+    image: pinchtab/pinchtab
+    container_name: pinchtab
+    # Bind to 0.0.0.0 so agent containers can reach it via host.docker.internal:9867
+    ports:
+      - "0.0.0.0:9867:9867"
+    volumes:
+      - pinchtab-data:/data
+    shm_size: 2g
+    restart: unless-stopped
+    # Token is auto-generated on first run and stored in the pinchtab-data volume.
+    # Keep PINCHTAB_TOKEN in .env in sync with /data/.config/pinchtab/config.json inside the volume.
+    # To start: docker run -d --name pinchtab -p 0.0.0.0:9867:9867 -v pinchtab-data:/data --shm-size=2g --restart=unless-stopped pinchtab/pinchtab
+
+volumes:
+  pinchtab-data:

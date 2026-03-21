@@ -235,7 +235,7 @@ function buildVolumeMounts(
     group.folder,
     'agent-runner-src',
   );
-  if (!fs.existsSync(groupAgentRunnerDir) && fs.existsSync(agentRunnerSrc)) {
+  if (fs.existsSync(agentRunnerSrc)) {
     fs.cpSync(agentRunnerSrc, groupAgentRunnerDir, { recursive: true });
   }
   mounts.push({
@@ -260,6 +260,7 @@ function buildVolumeMounts(
 function buildContainerArgs(
   mounts: VolumeMount[],
   containerName: string,
+  groupFolder: string,
 ): string[] {
   const args: string[] = ['run', '-i', '--rm', '--name', containerName];
 
@@ -274,11 +275,28 @@ function buildContainerArgs(
     args.push('-e', `NOTION_API_KEY=${notionApiKey}`);
   }
 
+  // Pass PinchTab connection details if configured
+  const pinchtabUrl =
+    process.env.PINCHTAB_URL || readEnvFile(['PINCHTAB_URL']).PINCHTAB_URL;
+  if (pinchtabUrl) {
+    args.push('-e', `PINCHTAB_URL=${pinchtabUrl}`);
+  }
+  const pinchtabToken =
+    process.env.PINCHTAB_TOKEN ||
+    readEnvFile(['PINCHTAB_TOKEN']).PINCHTAB_TOKEN;
+  if (pinchtabToken) {
+    args.push('-e', `PINCHTAB_TOKEN=${pinchtabToken}`);
+  }
+
   // Route API traffic through the credential proxy (containers never see real secrets)
   args.push(
     '-e',
     `ANTHROPIC_BASE_URL=http://${CONTAINER_HOST_GATEWAY}:${CREDENTIAL_PROXY_PORT}`,
   );
+
+  // Tell the proxy which group this container belongs to (for token usage attribution)
+  // Claude Code forwards ANTHROPIC_CUSTOM_HEADERS as extra headers on API calls
+  args.push('-e', `ANTHROPIC_CUSTOM_HEADERS=x-nanoclaw-group:${groupFolder}`);
 
   // Mirror the host's auth method with a placeholder value.
   // API key mode: SDK sends x-api-key, proxy replaces with real key.
@@ -331,7 +349,11 @@ export async function runContainerAgent(
   const mounts = buildVolumeMounts(group, input.isMain);
   const safeName = group.folder.replace(/[^a-zA-Z0-9-]/g, '-');
   const containerName = `nanoclaw-${safeName}-${Date.now()}`;
-  const containerArgs = buildContainerArgs(mounts, containerName);
+  const containerArgs = buildContainerArgs(
+    mounts,
+    containerName,
+    input.groupFolder,
+  );
 
   logger.debug(
     {

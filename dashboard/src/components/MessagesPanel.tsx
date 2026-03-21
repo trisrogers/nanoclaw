@@ -53,7 +53,7 @@ export default function MessagesPanel({ initialJid }: Props) {
   const [loading, setLoading] = useState(false);
   const listRef = useRef<HTMLDivElement | null>(null);
 
-  // Live chat state (only used when selectedJid === DASHBOARD_JID)
+  // Live chat state (WS for dashboard, optimistic for others)
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [liveMessages, setLiveMessages] = useState<MessageRow[]>([]);
@@ -143,27 +143,42 @@ export default function MessagesPanel({ initialJid }: Props) {
     setIsTyping(false);
   }
 
-  const sendMessage = () => {
+  const isDashboard = selectedJid === DASHBOARD_JID;
+
+  const sendMessage = async () => {
     const text = chatInput.trim();
-    if (!text || wsRef.current?.readyState !== WebSocket.OPEN) return;
-    wsRef.current.send(JSON.stringify({ text }));
+    if (!text) return;
+
     const row: MessageRow = {
       id: genId(),
-      chat_jid: DASHBOARD_JID,
+      chat_jid: selectedJid ?? '',
       sender_name: 'You',
       content: text,
       timestamp: new Date().toISOString(),
       is_bot_message: 0,
     };
-    setLiveMessages((prev) => [...prev, row]);
+
+    if (isDashboard) {
+      if (wsRef.current?.readyState !== WebSocket.OPEN) return;
+      wsRef.current.send(JSON.stringify({ text }));
+      setLiveMessages((prev) => [...prev, row]);
+    } else {
+      // Optimistic append, then send via REST
+      setLiveMessages((prev) => [...prev, row]);
+      fetch('/api/messages/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jid: selectedJid, text }),
+      }).catch(() => {/* silent */});
+    }
+
     setChatInput('');
     requestAnimationFrame(() => {
       if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
     });
   };
 
-  const isDashboard = selectedJid === DASHBOARD_JID;
-  const allMessages = isDashboard ? [...messages, ...liveMessages] : messages;
+  const allMessages = [...messages, ...liveMessages];
 
   return (
     <div className="flex h-full min-h-0">
@@ -191,23 +206,26 @@ export default function MessagesPanel({ initialJid }: Props) {
       <div className="flex flex-col flex-1 min-w-0 bg-gray-950">
         {/* Search / header bar */}
         <div className="shrink-0 px-4 py-3 border-b border-gray-800 flex items-center gap-3">
-          {!isDashboard && (
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search messages…"
-                className="w-full bg-gray-900 border border-gray-800 rounded-lg pl-9 pr-4 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-gray-600"
-              />
-            </div>
-          )}
-          {isDashboard && <span className="text-sm font-medium text-gray-300">Dashboard Chat</span>}
-          {!isDashboard && total > 0 && (
-            <span className="text-xs text-gray-500 shrink-0">
-              {total > 100 ? `Latest 100 of ${total}` : `${total} messages`}
-            </span>
+          {isDashboard ? (
+            <span className="text-sm font-medium text-gray-300">Dashboard Chat</span>
+          ) : (
+            <>
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search messages…"
+                  className="w-full bg-gray-900 border border-gray-800 rounded-lg pl-9 pr-4 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-gray-600"
+                />
+              </div>
+              {total > 0 && (
+                <span className="text-xs text-gray-500 shrink-0">
+                  {total > 100 ? `Latest 100 of ${total}` : `${total} messages`}
+                </span>
+              )}
+            </>
           )}
         </div>
 
@@ -243,21 +261,21 @@ export default function MessagesPanel({ initialJid }: Props) {
           )}
         </div>
 
-        {/* Chat input — only shown for dashboard group */}
-        {isDashboard && (
+        {/* Send box — always shown when a group is selected */}
+        {selectedJid && (
           <div className="shrink-0 border-t border-gray-800 p-3 flex gap-2">
             <textarea
               rows={1}
               className="flex-1 bg-gray-800 text-gray-100 rounded-lg px-3 py-2 text-sm resize-none outline-none placeholder-gray-500 focus:ring-1 focus:ring-blue-600"
-              placeholder="Message Deltron…"
+              placeholder={isDashboard ? 'Message Deltron…' : 'Send to Telegram…'}
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void sendMessage(); }
               }}
             />
             <button
-              onClick={sendMessage}
+              onClick={() => void sendMessage()}
               disabled={!chatInput.trim()}
               className="p-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-40"
               aria-label="Send message"

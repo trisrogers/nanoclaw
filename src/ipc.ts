@@ -5,7 +5,13 @@ import { CronExpressionParser } from 'cron-parser';
 
 import { DATA_DIR, IPC_POLL_INTERVAL, TIMEZONE } from './config.js';
 import { AvailableGroup } from './container-runner.js';
-import { createTask, deleteTask, getTaskById, updateTask } from './db.js';
+import {
+  createTask,
+  deleteTask,
+  getTaskById,
+  updateTask,
+  upsertEmailRule,
+} from './db.js';
 import {
   completeTodo,
   createSubtask,
@@ -247,6 +253,9 @@ export async function processTaskIpc(
     notionId?: string;
     parentTaskId?: string;
     status?: string;
+    // For email_importance_rule
+    senderEmail?: string;
+    importance?: string;
   },
   sourceGroup: string, // Verified identity from IPC directory
   isMain: boolean, // Verified from directory path
@@ -606,6 +615,24 @@ export async function processTaskIpc(
           'Todo completed via IPC',
         );
         writeTodoSnapshot(sourceGroup);
+      }
+      break;
+
+    case 'email_importance_rule':
+      if (
+        data.senderEmail &&
+        ['important', 'ignore'].includes(data.importance || '')
+      ) {
+        upsertEmailRule(data.senderEmail, data.importance!, data.notes);
+        logger.info(
+          { senderEmail: data.senderEmail, importance: data.importance },
+          'Email importance rule saved via IPC',
+        );
+      } else {
+        logger.warn(
+          data,
+          'email_importance_rule: missing senderEmail or invalid importance',
+        );
       }
       break;
 

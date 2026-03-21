@@ -66,6 +66,8 @@ interface SDKUserMessage {
   session_id: string;
 }
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const IPC_INPUT_DIR = '/workspace/ipc/input';
 const IPC_INPUT_CLOSE_SENTINEL = path.join(IPC_INPUT_DIR, '_close');
 const IPC_POLL_MS = 500;
@@ -447,8 +449,9 @@ async function runQuery(
         'TodoWrite', 'ToolSearch', 'Skill',
         'NotebookEdit',
         'mcp__nanoclaw__*',
-        'mcp__gmail__*',
+        ...(containerInput.groupFolder === 'telegram_email' ? ['mcp__gmail__*'] : []),
         ...(process.env.NOTION_API_KEY ? ['mcp__notion__*'] : []),
+        ...(process.env.PINCHTAB_URL ? ['mcp__pinchtab__*'] : []),
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',
@@ -464,10 +467,12 @@ async function runQuery(
             NANOCLAW_IS_MAIN: containerInput.isMain ? '1' : '0',
           },
         },
-        gmail: {
-          command: 'npx',
-          args: ['-y', '@gongrzhe/server-gmail-autoauth-mcp'],
-        },
+        ...(containerInput.groupFolder === 'telegram_email' ? {
+          gmail: {
+            command: 'npx',
+            args: ['-y', '@gongrzhe/server-gmail-autoauth-mcp'],
+          },
+        } : {}),
         ...(process.env.NOTION_API_KEY ? {
           notion: {
             command: 'npx',
@@ -477,6 +482,16 @@ async function runQuery(
                 Authorization: `Bearer ${process.env.NOTION_API_KEY}`,
                 'Notion-Version': '2022-06-28',
               }),
+            },
+          },
+        } : {}),
+        ...(process.env.PINCHTAB_URL ? {
+          pinchtab: {
+            command: 'node',
+            args: [path.join(__dirname, 'pinchtab-mcp.js')],
+            env: {
+              PINCHTAB_URL: process.env.PINCHTAB_URL,
+              ...(process.env.PINCHTAB_TOKEN ? { PINCHTAB_TOKEN: process.env.PINCHTAB_TOKEN } : {}),
             },
           },
         } : {}),
@@ -542,7 +557,6 @@ async function main(): Promise<void> {
   // No real secrets exist in the container environment.
   const sdkEnv: Record<string, string | undefined> = { ...process.env };
 
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const mcpServerPath = path.join(__dirname, 'ipc-mcp-stdio.js');
 
   let sessionId = containerInput.sessionId;

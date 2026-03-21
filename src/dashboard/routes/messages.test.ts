@@ -13,7 +13,7 @@ describe('GET /messages route', () => {
   });
 
   it('returns 400 when group param is missing', async () => {
-    const router = messagesRouter();
+    const router = messagesRouter({} as any);
     const req = { query: {} } as any;
     let statusCode: number | undefined;
     let jsonResponse: any;
@@ -53,7 +53,7 @@ describe('GET /messages route', () => {
       total: 1,
     });
 
-    const router = messagesRouter();
+    const router = messagesRouter({} as any);
     const req = { query: { group: 'tg:123', page: '1' } } as any;
     let jsonResponse: any;
     const res = {
@@ -83,7 +83,7 @@ describe('GET /messages route', () => {
       total: 0,
     });
 
-    const router = messagesRouter();
+    const router = messagesRouter({} as any);
     const req = { query: { group: 'tg:123', page: '1', search: 'foo' } } as any;
     const res = {
       status: vi.fn().mockReturnThis(),

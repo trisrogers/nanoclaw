@@ -6,7 +6,10 @@ import {
   listProjects,
   completeTodo,
   updateTodo,
+  createTodo,
+  getTodo,
 } from '../../todo.js';
+import { deleteTodo } from '../../db.js';
 
 export function todosRouter(): Router {
   const router = Router();
@@ -17,6 +20,75 @@ export function todosRouter(): Router {
     const items = listTodos();
     const projects = listProjects();
     res.json({ items, projects });
+  });
+
+  router.post('/todos', (req, res) => {
+    const { title, assignee, projectCode, priority, dueDate, notes } =
+      req.body as {
+        title?: string;
+        assignee?: string;
+        projectCode?: string;
+        priority?: string;
+        dueDate?: string;
+        notes?: string;
+      };
+
+    if (!title || !assignee) {
+      res.status(400).json({ error: 'title and assignee required' });
+      return;
+    }
+    if (!['tristan', 'deltron'].includes(assignee)) {
+      res.status(400).json({ error: 'assignee must be tristan or deltron' });
+      return;
+    }
+
+    try {
+      const item = createTodo({
+        title,
+        assignee: assignee as 'tristan' | 'deltron',
+        projectCode: projectCode || 'TSK',
+        priority: priority as 'low' | 'medium' | 'high' | undefined,
+        dueDate,
+        notes,
+      });
+      res.json(item);
+    } catch (e) {
+      res.status(500).json({ error: String(e) });
+    }
+  });
+
+  router.put('/todos/:id', (req, res) => {
+    const { id } = req.params;
+    const todo = getTodo(id);
+    if (!todo) {
+      res.status(404).json({ error: 'Todo not found' });
+      return;
+    }
+    const { title, assignee, status, priority, dueDate, notes } = req.body as {
+      title?: string;
+      assignee?: string;
+      status?: string;
+      priority?: string;
+      dueDate?: string | null;
+      notes?: string | null;
+    };
+
+    try {
+      if (status === 'done') {
+        completeTodo(id);
+      }
+      updateTodo(id, {
+        title,
+        assignee: assignee as 'tristan' | 'deltron' | undefined,
+        status: status as 'open' | 'done' | 'cancelled' | undefined,
+        priority: priority as 'low' | 'medium' | 'high' | null | undefined,
+        dueDate,
+        notes,
+      });
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ error: String(e) });
+    }
   });
 
   router.patch('/todos/:id', (req, res) => {
@@ -34,6 +106,15 @@ export function todosRouter(): Router {
       } else {
         updateTodo(id, { status: status as 'open' | 'cancelled' });
       }
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ error: String(e) });
+    }
+  });
+
+  router.delete('/todos/:id', (req, res) => {
+    try {
+      deleteTodo(req.params.id);
       res.json({ ok: true });
     } catch (e) {
       res.status(500).json({ error: String(e) });

@@ -6,13 +6,15 @@ import MessagesPanel from './components/MessagesPanel';
 import OverviewPanel from './components/OverviewPanel';
 import TasksPanel from './components/TasksPanel';
 import TodosPanel from './components/TodosPanel';
+import UsageTab from './components/UsageTab';
 
 const NAV_ITEMS = [
   'Overview',
   'Messages',
-  'Edit',
-  'Tasks',
   'Todos',
+  'Schedule',
+  'Edit',
+  'Usage',
   'Logs',
 ] as const;
 
@@ -72,8 +74,9 @@ export default function App() {
           />
         )}
         {active === 'Edit' && <MemoryPanel />}
-        {active === 'Tasks' && <TasksPanel />}
+        {active === 'Schedule' && <TasksPanel />}
         {active === 'Todos' && <TodosPanel />}
+        {active === 'Usage' && <UsageTab />}
         {active === 'Logs' && <LogsPanel />}
       </main>
     </div>
