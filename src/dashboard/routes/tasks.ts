@@ -63,11 +63,9 @@ export function tasksRouter(): Router {
     };
 
     if (!prompt || !schedule_type || !schedule_value || !group_folder) {
-      res
-        .status(400)
-        .json({
-          error: 'prompt, schedule_type, schedule_value, group_folder required',
-        });
+      res.status(400).json({
+        error: 'prompt, schedule_type, schedule_value, group_folder required',
+      });
       return;
     }
     if (!['once', 'cron', 'interval'].includes(schedule_type)) {
