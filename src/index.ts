@@ -239,24 +239,26 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
           typeof result.result === 'string'
             ? result.result
             : JSON.stringify(result.result);
-        // Strip <internal>...</internal> blocks — agent uses these for internal reasoning
+        // Strip <internal>...</internal> blocks for outbound channel delivery
         const text = raw.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
         logger.info(
           { group: group.name },
           `Agent output: ${raw.slice(0, 200)}`,
         );
+        // Always store raw content (including <internal> blocks) so the dashboard
+        // can show internal reasoning without forwarding it to Telegram
+        storeMessage({
+          id: randomUUID(),
+          chat_jid: chatJid,
+          sender: ASSISTANT_NAME.toLowerCase(),
+          sender_name: ASSISTANT_NAME,
+          content: raw,
+          timestamp: new Date().toISOString(),
+          is_from_me: false,
+          is_bot_message: true,
+        });
         if (text) {
           await channel.sendMessage(chatJid, text);
-          storeMessage({
-            id: randomUUID(),
-            chat_jid: chatJid,
-            sender: ASSISTANT_NAME.toLowerCase(),
-            sender_name: ASSISTANT_NAME,
-            content: text,
-            timestamp: new Date().toISOString(),
-            is_from_me: false,
-            is_bot_message: true,
-          });
           outputSentToUser = true;
         }
         // Only reset idle timer on actual results, not session-update markers (result: null)

@@ -29,6 +29,48 @@ function genId(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+interface ContentPart {
+  type: 'text' | 'internal';
+  text: string;
+}
+
+function parseMessageParts(content: string): ContentPart[] {
+  const parts: ContentPart[] = [];
+  const regex = /<internal>([\s\S]*?)<\/internal>/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(content)) !== null) {
+    const before = content.slice(lastIndex, match.index).trim();
+    if (before) parts.push({ type: 'text', text: before });
+    const inner = match[1].trim();
+    if (inner) parts.push({ type: 'internal', text: inner });
+    lastIndex = regex.lastIndex;
+  }
+  const after = content.slice(lastIndex).trim();
+  if (after) parts.push({ type: 'text', text: after });
+  return parts;
+}
+
+function InternalBlock({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-1 border border-gray-600 rounded-lg bg-gray-900 text-xs">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-1.5 px-2 py-1 text-gray-400 hover:text-gray-300 text-left"
+      >
+        <span className="font-mono">{open ? '▾' : '▸'}</span>
+        <span className="italic">internal reasoning</span>
+      </button>
+      {open && (
+        <div className="px-3 pb-2 text-gray-400 whitespace-pre-wrap font-mono leading-relaxed border-t border-gray-700 pt-2">
+          {text}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TypingIndicator() {
   return (
     <div className="flex gap-1 px-3 py-2 bg-gray-800 rounded-2xl w-fit">
@@ -181,7 +223,7 @@ export default function MessagesPanel({ initialJid }: Props) {
   const allMessages = [...messages, ...liveMessages];
 
   return (
-    <div className="flex h-full min-h-0">
+    <div className="flex flex-1 min-h-0 overflow-hidden">
       {/* Group sidebar */}
       <div className="w-56 shrink-0 bg-gray-900 border-r border-gray-800 overflow-y-auto">
         <div className="px-3 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Groups</div>
@@ -203,7 +245,7 @@ export default function MessagesPanel({ initialJid }: Props) {
       </div>
 
       {/* Content area */}
-      <div className="flex flex-col flex-1 min-w-0 bg-gray-950">
+      <div className="flex flex-col flex-1 min-w-0 min-h-0 bg-gray-950">
         {/* Search / header bar */}
         <div className="shrink-0 px-4 py-3 border-b border-gray-800 flex items-center gap-3">
           {isDashboard ? (
@@ -239,15 +281,29 @@ export default function MessagesPanel({ initialJid }: Props) {
           )}
           {!loading && allMessages.map((msg) => {
             const isBot = msg.is_bot_message === 1;
+            const parts = isBot ? parseMessageParts(msg.content) : null;
+            const hasVisibleText = !parts || parts.some((p) => p.type === 'text');
             return (
               <div key={msg.id} className={`flex flex-col ${isBot ? 'items-start' : 'items-end'}`}>
                 <span className="text-xs text-gray-400 mb-1 px-1">{msg.sender_name}</span>
-                <div className={isBot
-                  ? 'bg-gray-800 text-gray-100 rounded-2xl rounded-bl-sm px-4 py-2 text-sm whitespace-pre-wrap max-w-xl'
-                  : 'bg-blue-600 text-white rounded-2xl rounded-br-sm px-4 py-2 text-sm whitespace-pre-wrap max-w-xl'
-                }>
-                  {msg.content}
-                </div>
+                {isBot && parts ? (
+                  <div className="max-w-xl w-full">
+                    {hasVisibleText && (
+                      <div className="bg-gray-800 text-gray-100 rounded-2xl rounded-bl-sm px-4 py-2 text-sm whitespace-pre-wrap">
+                        {parts.filter((p) => p.type === 'text').map((p, i) => (
+                          <span key={i}>{p.text}</span>
+                        ))}
+                      </div>
+                    )}
+                    {parts.filter((p) => p.type === 'internal').map((p, i) => (
+                      <InternalBlock key={i} text={p.text} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-blue-600 text-white rounded-2xl rounded-br-sm px-4 py-2 text-sm whitespace-pre-wrap max-w-xl">
+                    {msg.content}
+                  </div>
+                )}
                 <span className="text-xs text-gray-500 mt-1 px-1">
                   {new Date(msg.timestamp).toLocaleString()}
                 </span>

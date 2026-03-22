@@ -1,11 +1,180 @@
 @import "tailwindcss";
 
-* {
-  box-sizing: border-box;
+/* ── Remap Tailwind's gray scale to the void palette ─────────────────────── */
+/* All existing panel classes (bg-gray-900, border-gray-800, etc.)           */
+/* automatically inherit the new aesthetic without touching panel code.       */
+@theme {
+  --color-gray-950: #06060c;
+  --color-gray-900: #0c0c1a;
+  --color-gray-800: #1c1c38;
+  --color-gray-700: #2c2c50;
+  --color-gray-600: #3d3d68;
+  --color-gray-500: #565a7a;
+  --color-gray-400: #808498;
+  --color-gray-300: #a0a5bc;
+  --color-gray-200: #c5cade;
+  --color-gray-100: #dde1f0;
 }
 
+/* ── Fonts ──────────────────────────────────────────────────────────────── */
+
+:root {
+  --font-display: 'Syne', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* ── Palette ──────────────────────────────────────────────────────────── */
+  --void:          #06060c;
+  --surface:       #0c0c1a;
+  --surface-raised:#12122a;
+  --border:        #1c1c38;
+  --border-bright: #2c2c50;
+
+  --accent:        #7c3aed;
+  --accent-bright: #9d6ef8;
+  --accent-glow:   rgba(124, 58, 237, 0.10);
+  --accent-glow-strong: rgba(124, 58, 237, 0.20);
+
+  --cyan:   #22d3ee;
+  --green:  #10b981;
+  --red:    #ef4444;
+  --amber:  #f59e0b;
+
+  --text:        #dde1f0;
+  --text-muted:  #565a7a;
+  --text-dim:    #282c42;
+}
+
+/* ── Reset ──────────────────────────────────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+
 body {
-  margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-display);
+  background: var(--void);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Dot-grid background texture ────────────────────────────────────────── */
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.6;
+}
+
+#root { position: relative; z-index: 1; }
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* ── Animations ──────────────────────────────────────────────────────────── */
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
+  70%  { box-shadow: 0 0 0 5px transparent; opacity: 0.7; }
+  100% { box-shadow: 0 0 0 0 transparent; opacity: 1; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.fade-up { animation: fade-up 0.25s ease-out forwards; }
+
+/* ── Utility classes ─────────────────────────────────────────────────────── */
+
+.font-mono  { font-family: var(--font-mono); }
+.font-display { font-family: var(--font-display); }
+
+/* Status dot */
+.status-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot.online {
+  background: var(--green);
+  color: var(--green);
+  animation: pulse-ring 2.5s ease-out infinite;
+}
+
+.status-dot.offline {
+  background: var(--red);
+}
+
+/* ── Panel cards ─────────────────────────────────────────────────────────── */
+
+.nc-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.nc-card:hover {
+  border-color: var(--border-bright);
+}
+
+/* ── Nav button ──────────────────────────────────────────────────────────── */
+
+.nc-nav-btn {
+  all: unset;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 18px 9px 16px;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  border-left: 2px solid transparent;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  position: relative;
+}
+
+.nc-nav-btn:hover {
+  color: var(--text);
+  background: rgba(255,255,255,0.03);
+}
+
+.nc-nav-btn.active {
+  color: var(--text);
+  background: var(--accent-glow);
+  border-left-color: var(--accent-bright);
+}
+
+.nc-nav-btn.active .nav-icon {
+  color: var(--accent-bright);
+}
+
+.nav-icon {
+  color: var(--text-dim);
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+.nc-nav-btn:hover .nav-icon {
+  color: var(--text-muted);
 }

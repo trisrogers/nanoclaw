@@ -14,7 +14,7 @@ interface TokenSummary {
 }
 
 function UtilBar({ value, label, resetsAt }: { value: number; label: string; resetsAt?: string }) {
-  const pct = Math.round(value * 100);
+  const pct = Math.round(value);
   const color = pct > 80 ? 'bg-red-500' : pct > 50 ? 'bg-yellow-500' : 'bg-blue-500';
   return (
     <div className="space-y-1">
