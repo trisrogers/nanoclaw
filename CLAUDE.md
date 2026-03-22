@@ -29,7 +29,9 @@ Single Node.js process with skill-based channel system. Channels (Telegram, Gmai
 | `src/db.ts` | SQLite operations |
 | `src/todo.ts` | Todo/task CRUD (projects, items, reminders) |
 | `src/image.ts` | Image processing and vision (downloads, resizes, stores in group dir) |
-| `groups/{name}/CLAUDE.md` | Per-group memory (isolated) |
+| `groups/global/CLAUDE.md` | Global agent instructions (agent identity, capabilities, communication protocol) |
+| `dashboard/` | React web UI showing messages, todos, schedule, usage, and internal logs |
+| `container/skills/self-improving/` | Auto-logging system for continuous improvement (learnings, errors, feature requests) |
 | `container/skills/agent-browser.md` | Browser automation tool (available to all agents via Bash) |
 
 ## Skills
@@ -42,6 +44,7 @@ Single Node.js process with skill-based channel system. Channels (Telegram, Gmai
 | `/update-nanoclaw` | Bring upstream NanoClaw updates into a customized install |
 | `/qodo-pr-resolver` | Fetch and fix Qodo PR review issues interactively or in batch |
 | `/get-qodo-rules` | Load org- and repo-level coding rules from Qodo before code tasks |
+| `self-improving` | Auto-logging for agent continuous improvement (learnings, errors, feature requests) |
 
 ## Task Management
 
