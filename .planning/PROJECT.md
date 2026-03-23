@@ -28,15 +28,15 @@ You can see everything NanoClaw is doing and intervene without touching the term
 
 <!-- New dashboard requirements -->
 
+- [x] **DASH-03**: User can browse and search message history per group — Validated in Phase 03: data-panels
+- [x] **DASH-07**: User can view Claude Code Pro plan usage (session usage, weekly limit, reset time) — Validated in Phase 03: data-panels
+- [x] **DASH-08**: User can view and manage todo items and task projects across all groups — Validated in Phase 03: data-panels
+- [x] **DASH-09**: User can edit per-group and global CLAUDE.md memory files — Validated in Phase 03: data-panels
 - [ ] **DASH-01**: User can chat with Deltron from dashboard (isolated session, real-time via WebSocket)
 - [ ] **DASH-02**: User can view container health per group (running/idle/stopped, live status)
-- [ ] **DASH-03**: User can browse and search message history per group
 - [ ] **DASH-04**: User can view registered groups and channel connection status
 - [ ] **DASH-05**: User can create, edit, pause/resume, and delete scheduled tasks
 - [ ] **DASH-06**: User can view agent activity logs (container stdout, error log, per group)
-- [ ] **DASH-07**: User can view Claude Code Pro plan usage (session usage, weekly limit, reset time)
-- [ ] **DASH-08**: User can view and manage todo items and task projects across all groups
-- [ ] **DASH-09**: User can edit per-group and global CLAUDE.md memory files
 - [ ] **DASH-10**: User can trigger quick actions (clear session, restart container, compact context)
 - [ ] **DASH-11**: User can edit group config (name, trigger settings, requiresTrigger flag)
 - [ ] **CONF-01**: Dashboard HTTP server starts with NanoClaw process on configurable port
@@ -90,5 +90,9 @@ NanoClaw is a single Node.js/TypeScript process running as a systemd user servic
 | No auth for v1 | Single-user, LAN-only tool; auth adds friction with no real security gain on home network | — Pending |
 | WebSocket only for chat | All other panels poll — avoids WebSocket complexity for data that doesn't need push | — Pending |
 
+## Current State
+
+Phase 3 complete — all 5 data panels (Messages, Memory, Tasks, Todos, Usage) implemented and verified. Dashboard now provides full read/edit access to NanoClaw data from the browser.
+
 ---
-*Last updated: 2026-03-15 after initialization*
+*Last updated: 2026-03-24 after Phase 3 completion*
