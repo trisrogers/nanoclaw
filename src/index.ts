@@ -769,6 +769,16 @@ async function main(): Promise<void> {
     onProcess: (groupJid, proc, containerName, groupFolder) =>
       queue.registerProcess(groupJid, proc, containerName, groupFolder),
     sendMessage: async (jid, rawText) => {
+      storeMessage({
+        id: randomUUID(),
+        chat_jid: jid,
+        sender: ASSISTANT_NAME.toLowerCase(),
+        sender_name: ASSISTANT_NAME,
+        content: rawText,
+        timestamp: new Date().toISOString(),
+        is_from_me: false,
+        is_bot_message: true,
+      });
       const channel = findChannel(channels, jid);
       if (!channel) {
         logger.warn({ jid }, 'No channel owns JID, cannot send message');

@@ -8,6 +8,7 @@ import {
   updateTodo,
   createTodo,
   getTodo,
+  getOrCreateProject,
 } from '../../todo.js';
 import { deleteTodo } from '../../db.js';
 
@@ -20,6 +21,32 @@ export function todosRouter(): Router {
     const items = listTodos();
     const projects = listProjects();
     res.json({ items, projects });
+  });
+
+  router.post('/projects', (req, res) => {
+    const { code, name } = req.body as { code?: string; name?: string };
+
+    if (!code || !name) {
+      res.status(400).json({ error: 'code and name required' });
+      return;
+    }
+
+    const codeUpper = code.toUpperCase();
+    if (codeUpper.length < 1 || codeUpper.length > 3) {
+      res.status(400).json({ error: 'code must be 1-3 characters' });
+      return;
+    }
+
+    try {
+      const project = getOrCreateProject(codeUpper, name);
+      res.json({
+        code: project.code,
+        name: project.name,
+        createdAt: project.created_at,
+      });
+    } catch (e) {
+      res.status(500).json({ error: String(e) });
+    }
   });
 
   router.post('/todos', (req, res) => {

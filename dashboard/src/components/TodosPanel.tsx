@@ -56,14 +56,19 @@ function TodoModal({
   initial,
   onClose,
   onSave,
+  projects,
 }: {
   initial?: Partial<TodoForm> & { id?: string };
   onClose: () => void;
   onSave: () => void;
+  projects: TodoProject[];
 }) {
   const [form, setForm] = useState<TodoForm>({ ...EMPTY_FORM, ...initial });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [newProjectCode, setNewProjectCode] = useState('');
+  const [newProjectName, setNewProjectName] = useState('');
 
   const isEdit = !!initial?.id;
 
@@ -135,17 +140,82 @@ function TodoModal({
               </select>
             </div>
             <div>
-              <label className="text-xs text-gray-400 mb-1 block">Project code</label>
-              <input
-                type="text"
-                value={form.projectCode}
-                onChange={(e) => set('projectCode', e.target.value.toUpperCase().slice(0, 3))}
+              <label className="text-xs text-gray-400 mb-1 block">Project</label>
+              <select
+                value={creatingProject ? '__new__' : form.projectCode}
+                onChange={(e) => {
+                  if (e.target.value === '__new__') {
+                    setCreatingProject(true);
+                  } else {
+                    setCreatingProject(false);
+                    set('projectCode', e.target.value);
+                  }
+                }}
                 className="w-full bg-gray-800 border border-gray-700 text-gray-100 text-sm rounded px-3 py-2 focus:outline-none focus:border-blue-500"
-                placeholder="TSK"
-                maxLength={3}
-              />
+              >
+                {projects.map((p) => (
+                  <option key={p.code} value={p.code}>
+                    {p.code} — {p.name}
+                  </option>
+                ))}
+                <option value="__new__">+ New project</option>
+              </select>
             </div>
           </div>
+
+          {creatingProject && (
+            <div className="space-y-3 bg-gray-800/50 border border-gray-700 rounded px-3 py-3">
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">Project Code (1–3 chars)</label>
+                <input
+                  type="text"
+                  value={newProjectCode}
+                  onChange={(e) => setNewProjectCode(e.target.value.toUpperCase().slice(0, 3))}
+                  className="w-full bg-gray-800 border border-gray-700 text-gray-100 text-sm rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+                  placeholder="e.g. DEV"
+                  maxLength={3}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">Project Name</label>
+                <input
+                  type="text"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 text-gray-100 text-sm rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+                  placeholder="e.g. Development"
+                />
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/projects', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ code: newProjectCode, name: newProjectName }),
+                    });
+                    if (!res.ok) {
+                      const data = await res.json() as { error?: string };
+                      setError(data.error ?? `Error creating project (${res.status})`);
+                      return;
+                    }
+                    // Reset form, close inline creation, select the new project
+                    set('projectCode', newProjectCode);
+                    setCreatingProject(false);
+                    setNewProjectCode('');
+                    setNewProjectName('');
+                    setError(null);
+                  } catch (e) {
+                    setError(String(e));
+                  }
+                }}
+                disabled={!newProjectCode || !newProjectName}
+                className="w-full bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white text-sm font-medium px-3 py-2 rounded transition-colors"
+              >
+                Create project
+              </button>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -433,6 +503,7 @@ export default function TodosPanel() {
           } : undefined}
           onClose={() => setModal({ open: false })}
           onSave={() => void fetchData()}
+          projects={data?.projects ?? []}
         />
       )}
     </div>
